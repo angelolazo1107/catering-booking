@@ -1,0 +1,463 @@
+{
+  "packages": [
+    {
+      "id": "royal_premiere",
+      "name": "Royal Premiere Banquet & VIP Feast",
+      "subtitle": "Ultra-Luxury 7-Course Celebration with Lechon Carving, Open Bar & VIP Styling",
+      "badge": "Premiere Luxe (₱95k+)",
+      "popular": true,
+      "pricePerPax": 950,
+      "minPax": 100,
+      "startingPrice": 95000,
+      "courses": {
+        "beef": 1,
+        "pork": 1,
+        "chicken": 1,
+        "fishOrSeafood": 1,
+        "noodles": 1,
+        "vegetables": 1,
+        "rice": 1,
+        "dessert": 2,
+        "drinks": 1
+      },
+      "inclusions": [
+        "7 Gourmet Main Dishes (Angus Roast Beef/Caldereta, Lechon Belly, Tiger Prawns/Baked Salmon, Chicken Inasal Confit, Truffle Pasta, Veg)",
+        "Steamed Pandan Jasmine Rice & Golden Garlic Rice",
+        "2 Premium Desserts (Mango Tapioca Royale + Special Leche Flan)",
+        "Bottomless Fresh Citrus Cooler & Signature Red Iced Tea",
+        "INCLUDED: Whole Crispy Roasted Lechon with Live Chef Carving Station",
+        "INCLUDED: Mobile Cocktail & Mocktail Bar (3 Hours Open Bar)",
+        "Full Presidential VIP Table setup with imported fresh blooms & candelabras",
+        "Upgraded Gold Tiffany / Phoenix Chairs for all guests",
+        "Complimentary Sparkling Wine toast for Presidential & VIP tables",
+        "Dedicated Captain Waiter, Sommelier, and Complete Formal Crew"
+      ]
+    },
+    {
+      "id": "grand_kasalan",
+      "name": "Grand Kasalan & Debut Luxe",
+      "subtitle": "Premium Grand Feast for Weddings & Milestone Events",
+      "badge": "Luxury VIP",
+      "popular": false,
+      "pricePerPax": 850,
+      "minPax": 70,
+      "startingPrice": 59500,
+      "courses": {
+        "beef": 1,
+        "pork": 1,
+        "chicken": 1,
+        "fishOrSeafood": 1,
+        "noodles": 1,
+        "vegetables": 1,
+        "rice": 1,
+        "dessert": 2,
+        "drinks": 1
+      },
+      "inclusions": [
+        "6 Main Dishes (Roast Beef/Caldereta, Lechon Belly, Seafood, Chicken, Noodles, Veg)",
+        "Steamed Jasmine Rice & Garlic Fried Rice",
+        "2 Desserts (Buko Pandan + Leche Flan Especial)",
+        "Bottomless Red Iced Tea & Fresh Calamansi Cooler",
+        "Presidential VIP Table setup with fresh imported flowers",
+        "Upgraded Tiffany chairs for guests & couple backdrop accent",
+        "Wine glasses for VIPs & complimentary bottle of sparkling wine for toast",
+        "Senior headwaiters & complete crew in formal attire"
+      ]
+    },
+    {
+      "id": "classic_fiesta",
+      "name": "Classic Fiesta Buffet",
+      "subtitle": "Most Popular for Anniversaries, Corporate & Debuts",
+      "badge": "Most Popular",
+      "popular": true,
+      "pricePerPax": 580,
+      "minPax": 50,
+      "startingPrice": 29000,
+      "courses": {
+        "beef": 1,
+        "pork": 1,
+        "chicken": 1,
+        "fish": 1,
+        "noodlesOrVeg": 1,
+        "rice": 1,
+        "dessert": 1,
+        "drinks": 1
+      },
+      "inclusions": [
+        "5 Main Dishes (1 Beef, 1 Pork, 1 Chicken, 1 Fish, 1 Pasta/Veg)",
+        "Steamed Pandan Jasmine Rice",
+        "1 Filipino Dessert (e.g. Buko Pandan or Leche Flan)",
+        "Bottomless Red Iced Tea or Calamansi Cooler",
+        "Elegant buffet setup with thematic floral centerpieces",
+        "Tables with full linen, glassware, silverware, and dressed chairs",
+        "Dedicated Captain Waiter and buffet service crew"
+      ]
+    },
+    {
+      "id": "salu_salo",
+      "name": "Salu-Salo Budget Buffet",
+      "subtitle": "Ideal for Birthdays, Binyag, & Family Get-Togethers",
+      "badge": "Budget Friendly",
+      "popular": false,
+      "pricePerPax": 380,
+      "minPax": 50,
+      "startingPrice": 19000,
+      "courses": {
+        "pork": 1,
+        "chicken": 1,
+        "noodlesOrVeg": 1,
+        "rice": 1,
+        "dessert": 1,
+        "drinks": 1
+      },
+      "inclusions": [
+        "3 Main Dishes (1 Pork, 1 Chicken, 1 Noodle/Vegetable)",
+        "Steamed Pandan Jasmine Rice",
+        "1 Filipino Classic Dessert",
+        "Bottomless Signature Red Iced Tea",
+        "Complete buffet table setup with chafing warmers & skirting",
+        "Uniformed servers and buffet attendants"
+      ]
+    },
+    {
+      "id": "merienda_cena",
+      "name": "Merienda Cena / Pica-Pica Buffet",
+      "subtitle": "Perfect for Afternoon Seminars, Receptions & Showers",
+      "badge": "Snack & Merienda",
+      "popular": false,
+      "pricePerPax": 320,
+      "minPax": 40,
+      "startingPrice": 12800,
+      "courses": {
+        "snackHeavy": 1,
+        "snackLight": 1,
+        "kakanin": 1,
+        "dessert": 1,
+        "drinks": 1
+      },
+      "inclusions": [
+        "2 Heavy Snacks (e.g., Pancit Sotanghon Guisado & Lumpiang Shanghai)",
+        "1 Traditional Kakanin (Puto, Bibingka, or Kutsinta with Coconut)",
+        "1 Dessert or Fresh Fruit Skewers",
+        "Fresh Brewed Batangas Barako Coffee or Bottomless Iced Tea",
+        "Cocktail or lounge buffet presentation"
+      ]
+    }
+  ],
+  "dishes": {
+    "beef": [
+      {
+        "id": "b0",
+        "name": "Slow-Braised USDA Angus Beef Shank in Burgundy Wine",
+        "description": "Melt-in-your-mouth prime beef shank simmered for 6 hours with pearl onions and fresh thyme"
+      },
+      {
+        "id": "b1",
+        "name": "Special Beef Caldereta with Queso",
+        "description": "Tender beef chunks in rich spiced tomato sauce with cheese, olives & bell peppers"
+      },
+      {
+        "id": "b2",
+        "name": "Classic Beef Kare-Kare with Bagoong Alamang",
+        "description": "Stewed beef shank & tripe in savory peanut gravy with blanched native greens"
+      },
+      {
+        "id": "b3",
+        "name": "Slow-Roasted Beef with Mushroom Brown Gravy",
+        "description": "Thin-sliced roast beef sirloin smothered in creamy wild mushroom sauce"
+      },
+      {
+        "id": "b4",
+        "name": "Beef Salpicao with Toasted Garlic",
+        "description": "Seared beef tenderloin tips with Worcestershire, butter, and crunchy garlic chips"
+      },
+      {
+        "id": "b5",
+        "name": "Beef with Broccoli & Young Corn",
+        "description": "Savory stir-fried beef slices with crisp florets in rich oyster sauce"
+      }
+    ],
+    "pork": [
+      {
+        "id": "p1",
+        "name": "Crispy Roasted Lechon Belly Roll",
+        "description": "Boneless rolled pork belly with crackling crispy skin infused with lemongrass & garlic"
+      },
+      {
+        "id": "p2",
+        "name": "Pork Hamonado Especial",
+        "description": "Slow-simmered pork shoulder in sweet pineapple glaze with pineapple chunks"
+      },
+      {
+        "id": "p3",
+        "name": "Lumpiang Shanghai with Sweet Chili Sauce",
+        "description": "Crispy ground pork spring rolls seasoned with minced veggies and spices"
+      },
+      {
+        "id": "p4",
+        "name": "Honey Glazed Pork BBQ Ribs",
+        "description": "Char-grilled pork ribs coated with sweet Pinoy-style barbecue glaze"
+      },
+      {
+        "id": "p5",
+        "name": "Sweet & Sour Pork with Bell Peppers",
+        "description": "Crisp battered pork tossed in vibrant sweet and tangy glaze with pineapple"
+      }
+    ],
+    "chicken": [
+      {
+        "id": "c1",
+        "name": "Authentic Bacolod Chicken Inasal",
+        "description": "Marinated bone-in chicken grilled to golden perfection with annatto-garlic oil"
+      },
+      {
+        "id": "c2",
+        "name": "Creamy Chicken Pastel with Sausages",
+        "description": "Tender chicken fillets with Vienna sausage, potatoes, and carrots in velvety cream"
+      },
+      {
+        "id": "c3",
+        "name": "Chicken Cordon Bleu with White Garlic Dip",
+        "description": "Breaded chicken breast stuffed with sliced ham and melting cheese"
+      },
+      {
+        "id": "c4",
+        "name": "Garlic Butter Fried Chicken Wings",
+        "description": "Crispy fried golden chicken tossed in fragrant melted butter and toasted garlic"
+      },
+      {
+        "id": "c5",
+        "name": "Classic Chicken Afritada Tagalog",
+        "description": "Simmered chicken stew with potatoes, carrots, green peas, and rich tomato sauce"
+      }
+    ],
+    "fish": [
+      {
+        "id": "f0",
+        "name": "Baked Norwegian Salmon with Lemon-Dill Cream",
+        "description": "Fresh Atlantic salmon fillet oven-baked with herbs and velvety caper-dill reduction"
+      },
+      {
+        "id": "f1",
+        "name": "Pan-Seared Fish Fillet in Garlic Lemon Butter",
+        "description": "Tender white fish fillet doused in zesty lemon and garlic butter emulsion"
+      },
+      {
+        "id": "f2",
+        "name": "Sweet & Sour Fish Fillet with Pineapple",
+        "description": "Crispy battered dory fillets in sweet and tangy Cantonese-style sauce"
+      },
+      {
+        "id": "f3",
+        "name": "Fish Fillet with Creamy Tartar Herb Sauce",
+        "description": "Golden crumbed fish fillets accompanied with house-made dill tartar sauce"
+      },
+      {
+        "id": "f4",
+        "name": "Buttered Garlic Shrimp with Chili Flakes",
+        "description": "Fresh juicy shrimp sautéed in generous real butter, garlic, and fresh parsley"
+      },
+      {
+        "id": "f5",
+        "name": "Gambas al Ajillo (Spanish-Filipino Prawns)",
+        "description": "Sizzling prawns cooked in olive oil, paprika, and copious fried garlic"
+      }
+    ],
+    "noodlesOrVeg": [
+      {
+        "id": "n0",
+        "name": "Truffle Cream Pancit Sotanghon with Shiitake",
+        "description": "Artisan glass noodles tossed in fragrant black truffle paste, forest mushrooms, and shaved parmesan"
+      },
+      {
+        "id": "n1",
+        "name": "Special Pancit Sotanghon Guisado",
+        "description": "Glass noodles stir-fried with shredded chicken, shrimp, wood ear mushrooms & cabbage"
+      },
+      {
+        "id": "n2",
+        "name": "Pancit Canton Especial with Bagnet Topping",
+        "description": "Egg noodles loaded with vegetables, quail eggs, pork strips, and crunchy bagnet"
+      },
+      {
+        "id": "n3",
+        "name": "Creamy Baked Macaroni with Molten Cheddar",
+        "description": "Classic Filipino style meaty sweet tomato sauce macaroni baked with cheese crust"
+      },
+      {
+        "id": "n4",
+        "name": "Pinakbet Tagalog with Crispy Pork Bagnet",
+        "description": "Local squash, eggplant, sitaw, and okra sautéed in aromatic bagoong isda"
+      },
+      {
+        "id": "n5",
+        "name": "Buttered Corn, Carrots & Baguio Beans",
+        "description": "Sweet kernel corn, French beans, and carrot rounds tossed in rich dairy butter"
+      },
+      {
+        "id": "n6",
+        "name": "Chopsuey Guisado with Quail Eggs",
+        "description": "Stir-fried crisp highland vegetables with chicken liver and hard-boiled quail eggs"
+      }
+    ],
+    "rice": [
+      {
+        "id": "r1",
+        "name": "Steamed Pandan Jasmine Rice",
+        "description": "Fluffy premium jasmine rice steamed with fresh fragrant screwpine (pandan) leaves"
+      },
+      {
+        "id": "r2",
+        "name": "Golden Garlic Fried Rice",
+        "description": "Wok-tossed day-old rice packed with aromatic crunchy roasted garlic flakes"
+      },
+      {
+        "id": "r3",
+        "name": "Yang Chow Fried Rice with Bits",
+        "description": "Wok-fried rice with sweet ham, green peas, scrambled egg shreds, and scallions"
+      }
+    ],
+    "dessert": [
+      {
+        "id": "d1",
+        "name": "Authentic Buko Pandan Cream Salad",
+        "description": "Young coconut ribbons, fragrant pandan agar jelly cubes in sweetened thickened cream"
+      },
+      {
+        "id": "d2",
+        "name": "Special Creamy Leche Flan (Pinoy Creme Caramel)",
+        "description": "Velvety smooth egg yolk custard with dark golden caramel syrup"
+      },
+      {
+        "id": "d3",
+        "name": "Mango Tapioca Melody",
+        "description": "Sweet ripe Guimaras mangoes combined with chewy mini sago pearls in coconut cream"
+      },
+      {
+        "id": "d4",
+        "name": "Ube Macapuno Mousse Trifle",
+        "description": "Layered purple yam halaya with soft sweetened macapuno coconut shreds"
+      },
+      {
+        "id": "d5",
+        "name": "Cathedral Window Jelly Cake",
+        "description": "Multi-colored gelatin mosaic suspended in sweetened condensed milk cream"
+      }
+    ],
+    "drinks": [
+      {
+        "id": "dr1",
+        "name": "Bottomless Signature Red Iced Tea",
+        "description": "House blend iced tea brewed with sweet berry notes and calamansi zest"
+      },
+      {
+        "id": "dr2",
+        "name": "Fresh Calamansi & Dalandan Citrus Cooler",
+        "description": "Cold-pressed native Philippine citrus sweetened with organic wild honey"
+      },
+      {
+        "id": "dr3",
+        "name": "Blue Lemonade Refresher with Mint",
+        "description": "Refreshing blue lemonade infused with fresh crushed spearmint"
+      },
+      {
+        "id": "dr4",
+        "name": "Cucumber Mint Infused Iced Drink",
+        "description": "Crisp cucumber essence with light citrus and chilled mineral water"
+      }
+    ]
+  },
+  "addons": [
+    {
+      "id": "lechon_small",
+      "name": "Whole Crispy Roast Lechon (Small)",
+      "category": "Roast & Carving",
+      "price": 8500,
+      "unit": "approx 15-18kg (serves 30-40 pax)",
+      "description": "Traditional whole roasted pig stuffed with lemongrass, garlic, and special spices. Includes native liver sauce.",
+      "popular": true
+    },
+    {
+      "id": "lechon_med",
+      "name": "Whole Crispy Roast Lechon (Medium)",
+      "category": "Roast & Carving",
+      "price": 10500,
+      "unit": "approx 20-23kg (serves 45-60 pax)",
+      "description": "Golden crispy skin and tender, aromatic meat roasted over charcoal fire. Includes liver gravy.",
+      "popular": false
+    },
+    {
+      "id": "lechon_large",
+      "name": "Whole Crispy Roast Lechon (Large)",
+      "category": "Roast & Carving",
+      "price": 12500,
+      "unit": "approx 25-28kg (serves 65-80 pax)",
+      "description": "Grand centerpiece lechon with extra crispy crackling skin and juicy seasoned ribs.",
+      "popular": false
+    },
+    {
+      "id": "halo_halo_station",
+      "name": "Pinoy Halo-Halo Dessert Bar Station",
+      "category": "Food Stations",
+      "price": 4500,
+      "unit": "100 Servings",
+      "description": "Interactive shaved ice station with shaved ice machine, ube halaya, leche flan, sago, nata de coco, sweetened beans, pinipig, and evaporated milk with attendant.",
+      "popular": true
+    },
+    {
+      "id": "sorbetes_cart",
+      "name": "Pinoy Sorbetes (Dirty Ice Cream) Wooden Cart",
+      "category": "Food Stations",
+      "price": 3500,
+      "unit": "approx 100-120 cones",
+      "description": "Authentic colorful wooden pushcart with 3 flavors (Cheese, Ube, Chocolate/Mango) in crispy wafer cones or sweet pandesal buns.",
+      "popular": true
+    },
+    {
+      "id": "grazing_table",
+      "name": "Deluxe Filipino Charcuterie & Grazing Table",
+      "category": "Food Stations",
+      "price": 6500,
+      "unit": "serves 50-70 pax",
+      "description": "Stylized appetizer spread with native sausages (longganisa bites), local artisanal cheeses (queso de bola, kesong puti), dried mangoes, crackers, nuts, and dips.",
+      "popular": false
+    },
+    {
+      "id": "mobile_bar",
+      "name": "Mobile Cocktails & Mocktails Bar",
+      "category": "Beverage Stations",
+      "price": 8000,
+      "unit": "3 Hours Open Bar (up to 70 pax)",
+      "description": "Lighted bar counter with 3 signature Filipino cocktails (e.g. Boracay Sunset, Manila Mule) and 2 non-alcoholic mocktails with professional bartender.",
+      "popular": false
+    },
+    {
+      "id": "tiffany_chairs",
+      "name": "Tiffany / Phoenix Chairs with VIP Linen Upgrade",
+      "category": "Venue Styling",
+      "price": 5000,
+      "unit": "up to 50-70 chairs",
+      "description": "Replace standard monobloc chairs with elegant Gold or White Tiffany chairs with cushions, paired with premium table runners.",
+      "popular": true
+    },
+    {
+      "id": "sound_and_lights",
+      "name": "Basic Acoustic Sound System & Mood Uplights",
+      "category": "Production",
+      "price": 6000,
+      "unit": "4 Hours Setup",
+      "description": "2 powered PA speakers, 2 wireless microphones, audio mixer, and 8 LED ambient mood uplights suitable for intimate to medium venues.",
+      "popular": false
+    },
+    {
+      "id": "presidential_flowers",
+      "name": "Fresh Floral Presidential & VIP Centerpieces",
+      "category": "Venue Styling",
+      "price": 4000,
+      "unit": "Set of 5 Tables",
+      "description": "Freshly arranged floral centerpieces with local roses, chrysanthemums, and lush foliage for VIP and bridal tables.",
+      "popular": false
+    }
+  ],
+  "bookings": []
+}

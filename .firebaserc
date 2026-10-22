@@ -1,0 +1,17 @@
+{
+  "projects": {
+    "default": "cater-booking"
+  },
+  "targets": {
+    "cater-booking": {
+      "hosting": {
+        "client": [
+          "cater-booking"
+        ],
+        "admin": [
+          "cater-booking-admin"
+        ]
+      }
+    }
+  }
+}
