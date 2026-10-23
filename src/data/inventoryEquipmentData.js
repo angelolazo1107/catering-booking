@@ -405,6 +405,87 @@ export function generateDefaultIngressInventory(quotation = {}) {
     }
   ];
 
+  // Check service types
+  const isFoodTray = quotation.serviceType === "food_tray" || quotation.isFoodTray || (quotation.packageId && quotation.packageId.startsWith("food_tray"));
+  const isPicaPica = quotation.serviceType === "pica_pica" || quotation.isPicaPica || (quotation.packageId && quotation.packageId.startsWith("pica_pica"));
+  const isGrazing = quotation.serviceType === "grazing_table" || quotation.isGrazingTable || (quotation.packageId && quotation.packageId.startsWith("grazing_"));
+
+  // 1. Specialized Food Tray Delivery Equipment
+  if (isFoodTray) {
+    return [
+      {
+        id: "eq_thermal_carriers",
+        category: "logistics",
+        description: "INSULATED THERMAL FOOD CARRIER BOXES",
+        qty: Math.max(2, Math.ceil(dishCount / 3)),
+        unit: "SETS",
+        remarks: "Maintains temperature during transit",
+        ingressChecked: false,
+        egressChecked: false
+      },
+      {
+        id: "eq_chafing_wire_stands",
+        category: "buffet",
+        description: "WIRE CHAFING STANDS WITH DEEP WATER PANS",
+        qty: dishCount,
+        unit: "SETS",
+        remarks: "For tabletop display warming",
+        ingressChecked: false,
+        egressChecked: false
+      },
+      {
+        id: "eq_sterno_cans",
+        category: "buffet",
+        description: "CHAFING STERNO HEATING FUEL (2-HOUR CANS)",
+        qty: dishCount * 2,
+        unit: "CANS",
+        remarks: "Food warming fuel",
+        ingressChecked: false,
+        egressChecked: false
+      },
+      {
+        id: "eq_serving_spoons_tray",
+        category: "buffet",
+        description: "STAINLESS SERVING SPOONS",
+        qty: dishCount,
+        unit: "PCS",
+        remarks: "One per food tray",
+        ingressChecked: false,
+        egressChecked: false
+      },
+      {
+        id: "eq_food_tongs_tray",
+        category: "buffet",
+        description: "SERVING FOOD TONGS",
+        qty: 4,
+        unit: "PCS",
+        remarks: "Salad, noodles & pastries",
+        ingressChecked: false,
+        egressChecked: false
+      },
+      {
+        id: "eq_disposable_plates",
+        category: "dinnerware",
+        description: "ECO-FRIENDLY DISPOSABLE PLATES & CUTLERY SETS",
+        qty: platePax,
+        unit: "SETS",
+        remarks: "Complete client dining sets",
+        ingressChecked: false,
+        egressChecked: false
+      },
+      {
+        id: "eq_heavy_trash_bags",
+        category: "logistics",
+        description: "HEAVY-DUTY TRASH BAGS (BLACK)",
+        qty: 4,
+        unit: "PCS",
+        remarks: "For event waste management",
+        ingressChecked: false,
+        egressChecked: false
+      }
+    ];
+  }
+
   // If Kiddie package, append hotdog machine, condiments, balloon poles
   if (isKiddie) {
     items.push(
@@ -455,6 +536,118 @@ export function generateDefaultIngressInventory(quotation = {}) {
         qty: 1,
         unit: "SET",
         remarks: "Balloon inflation kit",
+        ingressChecked: false,
+        egressChecked: false
+      }
+    );
+  }
+
+  // If Pica Pica Station, append tiered risers, slate platters, cocktail tongs, skewer holders
+  if (isPicaPica) {
+    items.push(
+      {
+        id: "eq_pica_risers",
+        category: "stations",
+        description: "3-TIER WOODEN & ACRYLIC COCKTAIL DISPLAY RISERS",
+        qty: 4,
+        unit: "SETS",
+        remarks: "Elevation for sliders, canapes, & appetizers",
+        ingressChecked: false,
+        egressChecked: false
+      },
+      {
+        id: "eq_slate_platters",
+        category: "stations",
+        description: "BLACK SLATE & CERAMIC CANAPÉ DISPLAY PLATTERS",
+        qty: 8,
+        unit: "PCS",
+        remarks: "Gourmet cocktail presentation",
+        ingressChecked: false,
+        egressChecked: false
+      },
+      {
+        id: "eq_mini_tongs",
+        category: "buffet",
+        description: "STAINLESS MINI APPETIZER TONGS",
+        qty: 12,
+        unit: "PCS",
+        remarks: "Finger foods & bite-sized items",
+        ingressChecked: false,
+        egressChecked: false
+      },
+      {
+        id: "eq_skewer_caddies",
+        category: "stations",
+        description: "BAMBOO APPETIZER SKEWER HOLDERS & CADDIES",
+        qty: 4,
+        unit: "PCS",
+        remarks: "Cocktail picks & skewer station",
+        ingressChecked: false,
+        egressChecked: false
+      },
+      {
+        id: "eq_glass_dispenser",
+        category: "beverage",
+        description: "5-LITER VINTAGE GLASS BEVERAGE DISPENSER WITH TAP",
+        qty: 2,
+        unit: "SETS",
+        remarks: "Infused coolers & signature red iced tea",
+        ingressChecked: false,
+        egressChecked: false
+      }
+    );
+  }
+
+  // If Grazing Table, append charcuterie boards, cheese knives, elevation crates, ramekins
+  if (isGrazing) {
+    items.push(
+      {
+        id: "eq_grazing_charcuterie_boards",
+        category: "stations",
+        description: "ACACIA WOOD & MARBLE CHARCUTERIE STYLING BOARDS",
+        qty: 6,
+        unit: "PCS",
+        remarks: "For artisan cold cuts & imported cheeses",
+        ingressChecked: false,
+        egressChecked: false
+      },
+      {
+        id: "eq_cheese_knives_set",
+        category: "stations",
+        description: "GOLD / STAINLESS GOURMET CHEESE KNIVES & TONGS SET",
+        qty: 4,
+        unit: "SETS",
+        remarks: "Cheese slicers, spreaders, & tongs",
+        ingressChecked: false,
+        egressChecked: false
+      },
+      {
+        id: "eq_grazing_elevation_crates",
+        category: "styling",
+        description: "RUSTIC ELEVATION WOODEN CRATES (ASSORTED SIZES)",
+        qty: 4,
+        unit: "PCS",
+        remarks: "Tiered architectural styling for grazing table",
+        ingressChecked: false,
+        egressChecked: false
+      },
+      {
+        id: "eq_dip_ramekins",
+        category: "stations",
+        description: "CERAMIC & GLASS RAMEKINS FOR JAMS, HONEY & DIPS",
+        qty: 8,
+        unit: "PCS",
+        remarks: "For artisan condiments & olives",
+        ingressChecked: false,
+        egressChecked: false
+      },
+      {
+        id: "eq_botanical_accents",
+        category: "styling",
+        description: "BOTANICAL EUCALYPTUS GARLAND & TABLE STYLING PROPS",
+        qty: 1,
+        unit: "SET",
+        remarks: "Natural greenery framing the grazing table",
         ingressChecked: false,
         egressChecked: false
       }

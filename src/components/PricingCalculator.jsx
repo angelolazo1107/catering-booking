@@ -1,28 +1,30 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { 
-  CATERING_PACKAGES, 
-  DISH_MENU_OPTIONS, 
-  CATERING_ADDONS, 
-  DELIVERY_LOCATIONS, 
+import {
+  CATERING_PACKAGES,
+  DISH_MENU_OPTIONS,
+  CATERING_ADDONS,
+  DELIVERY_LOCATIONS,
   EVENT_TYPES,
   getDishUpgradePrice,
   DEFAULT_SPECIAL_DISH_UPGRADE_RATE,
   getMainDishesCount,
-  getPackageCourseAllowances
+  getPackageCourseAllowances,
+  CONFERENCE_MEAL_RATES,
+  CONFERENCE_SNACK_OPTIONS
 } from "../data/cateringData";
-import { 
-  Check, 
-  Calendar, 
-  Clock, 
-  MapPin, 
-  Users, 
-  Utensils, 
-  Sparkles, 
-  Plus, 
+import {
+  Check,
+  Calendar,
+  Clock,
+  MapPin,
+  Users,
+  Utensils,
+  Sparkles,
+  Plus,
   Minus,
-  X, 
-  Printer, 
-  Save, 
+  X,
+  Printer,
+  Save,
   ChevronRight,
   Info,
   CalendarCheck,
@@ -32,11 +34,13 @@ import {
   ArrowRight
 } from "lucide-react";
 import confetti from "canvas-confetti";
-import { 
-  isDateFullyBooked, 
-  getRemainingSlotsForDate, 
-  getFullyBookedDatesList, 
-  MAX_CONFIRMED_BOOKINGS_PER_DAY 
+import {
+  isDateFullyBooked,
+  getRemainingSlotsForDate,
+  getFullyBookedDatesList,
+  MAX_CONFIRMED_BOOKINGS_PER_DAY,
+  formatTime12Hour,
+  getConferenceEndDate
 } from "../utils/bookingUtils";
 
 const STORAGE_KEY_DRAFT_BOOKING = "caterflow_client_draft_booking";
@@ -53,9 +57,9 @@ function loadDraftBooking() {
   return null;
 }
 
-export default function PricingCalculator({ 
-  onGenerateQuote, 
-  onSaveQuote, 
+export default function PricingCalculator({
+  onGenerateQuote,
+  onSaveQuote,
   isSaving,
   packagesList = CATERING_PACKAGES,
   dishesMenu = DISH_MENU_OPTIONS,
@@ -75,10 +79,48 @@ export default function PricingCalculator({
     eventTime: draft?.clientInfo?.eventTime || "18:00",
     venueName: draft?.clientInfo?.venueName || "",
     venueAddress: draft?.clientInfo?.venueAddress || "",
-    notes: draft?.clientInfo?.notes || ""
+    notes: draft?.clientInfo?.notes || "",
+    conferenceDays: draft?.clientInfo?.conferenceDays || 3,
+    agencyPoNumber: draft?.clientInfo?.agencyPoNumber || ""
   }));
 
-  // 2. Package & Pax
+  // Government / Multi-Day Conference State
+  const isConference = clientInfo.eventType === "government_conference";
+  const [conferenceDays, setConferenceDays] = useState(() => draft?.conferenceDays || clientInfo.conferenceDays || 3);
+  const [agencyPoNumber, setAgencyPoNumber] = useState(() => draft?.agencyPoNumber || clientInfo.agencyPoNumber || "");
+
+  // Conference Meal Selections
+  const [amSnackDish, setAmSnackDish] = useState(() => draft?.amSnackDish || CONFERENCE_SNACK_OPTIONS?.sandwiches?.[1] || "Chicken Salad Croissant Sandwich");
+  const [amSnackDrink, setAmSnackDrink] = useState(() => draft?.amSnackDrink || "Freshly Brewed Hot Coffee / Tea");
+  const [pmSnackDish, setPmSnackDish] = useState(() => draft?.pmSnackDish || CONFERENCE_SNACK_OPTIONS?.pastas?.[0] || "Creamy Carbonara with Garlic Toast");
+  const [pmSnackDrink, setPmSnackDrink] = useState(() => draft?.pmSnackDrink || "Soda (Coke)");
+
+  // Dinner Selections (Package 2: 4 Mains, 1 Side, Steamed Rice, Beverage, Dessert)
+  const [dinnerMainDishes, setDinnerMainDishes] = useState(() => {
+    if (Array.isArray(draft?.dinnerMainDishes) && draft.dinnerMainDishes.length > 0) {
+      return draft.dinnerMainDishes;
+    }
+    return [
+      "Beef Caldereta",
+      "Pork Asado with Mushroom",
+      "Buttered Garlic Herb Chicken",
+      "Fish Fillet (Cream Dory) in Garlic Cream Dip"
+    ];
+  });
+  const [dinnerSide, setDinnerSide] = useState(() => draft?.dinnerSide || "Chop Suey Guisado");
+  const [dinnerDessert, setDinnerDessert] = useState(() => draft?.dinnerDessert || "Buko Pandan Salad");
+  const [dinnerDrink, setDinnerDrink] = useState(() => draft?.dinnerDrink || "Bottomless Signature Red Iced Tea");
+  const [dinnerRice, setDinnerRice] = useState(() => draft?.dinnerRice || "Plain Steamed Rice");
+
+  // 2. Service Type & Package
+  const [activeServiceType, setActiveServiceType] = useState(() => {
+    if (draft?.serviceType) return draft.serviceType;
+    if (draft?.selectedPkgId?.startsWith("food_tray")) return "food_tray";
+    if (draft?.selectedPkgId?.startsWith("pica_pica")) return "pica_pica";
+    if (draft?.selectedPkgId?.startsWith("grazing_table")) return "grazing_table";
+    return "buffet"; // "buffet" | "food_tray" | "pica_pica" | "grazing_table"
+  });
+
   const [selectedPkgId, setSelectedPkgId] = useState(() => draft?.selectedPkgId || "package_4");
   const currentPkg = useMemo(() => {
     if (!packagesList || packagesList.length === 0) return CATERING_PACKAGES[0];
@@ -88,6 +130,31 @@ export default function PricingCalculator({
       packagesList[0];
     return match;
   }, [selectedPkgId, packagesList]);
+
+  const isFoodTray = activeServiceType === "food_tray" || currentPkg?.serviceType === "food_tray" || currentPkg?.id?.startsWith("food_tray");
+  const isPicaPica = activeServiceType === "pica_pica" || currentPkg?.serviceType === "pica_pica" || currentPkg?.id?.startsWith("pica_pica");
+  const isGrazingTable = activeServiceType === "grazing_table" || currentPkg?.serviceType === "grazing_table" || currentPkg?.id?.startsWith("grazing_table");
+
+  const displayPackages = useMemo(() => {
+    if (isConference) return packagesList;
+    if (activeServiceType === "food_tray") {
+      const trays = packagesList.filter(p => p.serviceType === "food_tray" || p.id?.startsWith("food_tray"));
+      return trays.length > 0 ? trays : packagesList;
+    }
+    if (activeServiceType === "pica_pica") {
+      const pica = packagesList.filter(p => p.serviceType === "pica_pica" || p.id?.startsWith("pica_pica"));
+      return pica.length > 0 ? pica : packagesList;
+    }
+    if (activeServiceType === "grazing_table") {
+      const grazing = packagesList.filter(p => p.serviceType === "grazing_table" || p.id?.startsWith("grazing_table"));
+      return grazing.length > 0 ? grazing : packagesList;
+    }
+    return packagesList.filter(p =>
+      p.serviceType !== "food_tray" && !p.id?.startsWith("food_tray") &&
+      p.serviceType !== "pica_pica" && !p.id?.startsWith("pica_pica") &&
+      p.serviceType !== "grazing_table" && !p.id?.startsWith("grazing_table")
+    );
+  }, [packagesList, activeServiceType, isConference]);
 
   const [pax, setPax] = useState(() => draft?.pax ?? 100);
 
@@ -201,6 +268,83 @@ export default function PricingCalculator({
     }
   }, [maxMainDishes]);
 
+  // 7b. Pica Pica & Grazing Table Selections
+  const [selectedSliders, setSelectedSliders] = useState(() => {
+    if (Array.isArray(draft?.selectedSliders) && draft.selectedSliders.length > 0) return draft.selectedSliders;
+    return ["Mini Crispy Chicken Sandwich", "Mini BLT or Mini Cheese Burger", "Mini Cheesy Chicken Pesto"];
+  });
+  const [selectedCanapes, setSelectedCanapes] = useState(() => {
+    if (Array.isArray(draft?.selectedCanapes) && draft.selectedCanapes.length > 0) return draft.selectedCanapes;
+    return [
+      "Tuna Quinoa Salad",
+      "Mini Olives, Hungarian Sausage and Cheese Skewers",
+      "Garlic Bread in Mango Salsa Dip",
+      "Crab Cakes with Garlic Cream Cheese",
+      "Chicken Ala King Bites"
+    ];
+  });
+  const [selectedFingerFoods, setSelectedFingerFoods] = useState(() => {
+    if (Array.isArray(draft?.selectedFingerFoods) && draft.selectedFingerFoods.length > 0) return draft.selectedFingerFoods;
+    return ["Chicken Fingers with Dip", "Cheese Sticks in Marinara Sauce", "Potato Wedges"];
+  });
+  const [selectedMiniDesserts, setSelectedMiniDesserts] = useState(() => {
+    if (Array.isArray(draft?.selectedMiniDesserts) && draft.selectedMiniDesserts.length > 0) return draft.selectedMiniDesserts;
+    return ["Mixed Seasonal Fruit Cups", "Mango Tapioca", "Coffee Jelly"];
+  });
+  const [picaDiyStation, setPicaDiyStation] = useState(() => draft?.picaDiyStation || "DIY Nacho Station");
+  const [picaBeverage, setPicaBeverage] = useState(() => draft?.picaBeverage || "Choice of Juice (House Red Iced Tea)");
+
+  const picaAllowances = useMemo(() => {
+    return currentPkg?.picaAllowances || {
+      sliders: 3,
+      canapes: 5,
+      fingerFood: 3,
+      miniDesserts: 2,
+      hasKakanin: false,
+      hasDiyStation: false
+    };
+  }, [currentPkg]);
+
+  const grazingAllowances = useMemo(() => {
+    return currentPkg?.grazingAllowances || {
+      canapes: 5,
+      sliders: 4,
+      hasDessertShots: currentPkg?.id?.includes("premium") || false
+    };
+  }, [currentPkg]);
+
+  // Trim sliders if package has fewer
+  useEffect(() => {
+    if (isPicaPica && selectedSliders.length > (picaAllowances.sliders || 3)) {
+      setSelectedSliders(prev => prev.slice(0, picaAllowances.sliders || 3));
+    } else if (isGrazingTable && selectedSliders.length > (grazingAllowances.sliders || 4)) {
+      setSelectedSliders(prev => prev.slice(0, grazingAllowances.sliders || 4));
+    }
+  }, [isPicaPica, isGrazingTable, picaAllowances.sliders, grazingAllowances.sliders]);
+
+  // Trim canapes
+  useEffect(() => {
+    if (isPicaPica && selectedCanapes.length > (picaAllowances.canapes || 5)) {
+      setSelectedCanapes(prev => prev.slice(0, picaAllowances.canapes || 5));
+    } else if (isGrazingTable && selectedCanapes.length > (grazingAllowances.canapes || 5)) {
+      setSelectedCanapes(prev => prev.slice(0, grazingAllowances.canapes || 5));
+    }
+  }, [isPicaPica, isGrazingTable, picaAllowances.canapes, grazingAllowances.canapes]);
+
+  // Trim finger foods
+  useEffect(() => {
+    if (isPicaPica && selectedFingerFoods.length > (picaAllowances.fingerFood || 3)) {
+      setSelectedFingerFoods(prev => prev.slice(0, picaAllowances.fingerFood || 3));
+    }
+  }, [isPicaPica, picaAllowances.fingerFood]);
+
+  // Trim mini desserts
+  useEffect(() => {
+    if (isPicaPica && selectedMiniDesserts.length > (picaAllowances.miniDesserts || 2)) {
+      setSelectedMiniDesserts(prev => prev.slice(0, picaAllowances.miniDesserts || 2));
+    }
+  }, [isPicaPica, picaAllowances.miniDesserts]);
+
   // 8. Add-ons selection (array of { id, qty })
   const [selectedAddons, setSelectedAddons] = useState(() => draft?.selectedAddons || {
     lechon_small: 1,
@@ -219,6 +363,7 @@ export default function PricingCalculator({
     try {
       const dataToSave = {
         clientInfo,
+        serviceType: activeServiceType,
         selectedPkgId,
         pax,
         swapDeal,
@@ -227,10 +372,16 @@ export default function PricingCalculator({
         desserts,
         riceOrSoup,
         beverage,
+        selectedSliders,
+        selectedCanapes,
+        selectedFingerFoods,
+        selectedMiniDesserts,
+        picaDiyStation,
+        picaBeverage,
         otherDishes: {
           rice: riceOrSoup,
-          dessert: courseAllowances.regDessertsCount >= 2 
-            ? `${desserts.regular}, ${desserts.regular2 || "Buko Pandan"}` 
+          dessert: courseAllowances.regDessertsCount >= 2
+            ? `${desserts.regular}, ${desserts.regular2 || "Buko Pandan"}`
             : desserts.regular,
           dessertSpecial: courseAllowances.specDessertsCount > 0 ? desserts.special : null,
           drinks: beverage
@@ -240,13 +391,13 @@ export default function PricingCalculator({
           pork: selectedMainDishes[1] || "",
           chicken: selectedMainDishes[2] || "",
           fish: selectedMainDishes[3] || "",
-          noodlesOrVeg: courseAllowances.regSidesCount >= 2 
-            ? `${sideDishes.regular}, ${sideDishes.regular2 || "Baked Penne Pasta"}` 
+          noodlesOrVeg: courseAllowances.regSidesCount >= 2
+            ? `${sideDishes.regular}, ${sideDishes.regular2 || "Baked Penne Pasta"}`
             : sideDishes.regular,
           sideSpecial: courseAllowances.specSidesCount > 0 ? sideDishes.special : null,
           rice: riceOrSoup,
-          dessert: courseAllowances.regDessertsCount >= 2 
-            ? `${desserts.regular}, ${desserts.regular2 || "Buko Pandan"}` 
+          dessert: courseAllowances.regDessertsCount >= 2
+            ? `${desserts.regular}, ${desserts.regular2 || "Buko Pandan"}`
             : desserts.regular,
           dessertSpecial: courseAllowances.specDessertsCount > 0 ? desserts.special : null,
           drinks: beverage
@@ -264,6 +415,7 @@ export default function PricingCalculator({
     }
   }, [
     clientInfo,
+    activeServiceType,
     selectedPkgId,
     pax,
     swapDeal,
@@ -272,6 +424,12 @@ export default function PricingCalculator({
     desserts,
     riceOrSoup,
     beverage,
+    selectedSliders,
+    selectedCanapes,
+    selectedFingerFoods,
+    selectedMiniDesserts,
+    picaDiyStation,
+    picaBeverage,
     selectedAddons,
     deliveryLocation,
     customDeliveryFee,
@@ -334,18 +492,77 @@ export default function PricingCalculator({
   };
 
   // Calculations
-  const foodTotal = pax * currentPkg.pricePerPax;
+  const confDaysNum = isConference ? Math.max(1, Number(conferenceDays || 3)) : 1;
+  const foodTotal = useMemo(() => {
+    if (isConference) {
+      return pax * (CONFERENCE_MEAL_RATES?.dailyTotal || 1290) * confDaysNum;
+    }
+    if (isGrazingTable) {
+      if (typeof currentPkg.price === "number" && currentPkg.price > 0) {
+        if (currentPkg.maxPax && pax > currentPkg.maxPax) {
+          const extraRate = currentPkg.pricePerPax || Math.round(currentPkg.price / currentPkg.maxPax);
+          return currentPkg.price + ((pax - currentPkg.maxPax) * extraRate);
+        }
+        return currentPkg.price;
+      }
+      return currentPkg.price || 85000;
+    }
+    if (isFoodTray) {
+      if (typeof currentPkg.price === "number" && currentPkg.price > 0) {
+        if (currentPkg.maxPax && pax > currentPkg.maxPax) {
+          const extraRate = currentPkg.pricePerPax || Math.round(currentPkg.price / currentPkg.maxPax);
+          return currentPkg.price + ((pax - currentPkg.maxPax) * extraRate);
+        }
+        return currentPkg.price;
+      }
+      return pax * (currentPkg.pricePerPax || 200);
+    }
+    // Buffet or Pica Pica
+    return pax * (currentPkg.pricePerPax || 350);
+  }, [isConference, isGrazingTable, isFoodTray, currentPkg, pax, confDaysNum]);
 
-  // Selected Special Dishes and Upgrade Fee (Main dishes + Special Side & Special Dessert if not included in package)
+  // Selected Special Dishes and Upgrade Fee (Main dishes + Special Side & Special Dessert or Special Sliders/Canapés)
   const selectedSpecialDishesList = useMemo(() => {
+    if (isConference) return []; // Government conference includes fixed package rates
     const list = [];
+
+    // Pica Pica & Grazing Table Upgrades (Special Sliders & Special Canapés at +₱45/pax)
+    if (isPicaPica || isGrazingTable) {
+      for (const name of selectedSliders) {
+        const dishObj = getDishObject("sliders", name);
+        if (dishObj && (dishObj.tier === "special" || dishObj.premium)) {
+          const upgradeRate = getDishUpgradePrice(dishObj) || 45;
+          list.push({
+            category: "sliders",
+            name: `${name} (Special Slider Upgrade)`,
+            upgradePrice: upgradeRate,
+            totalUpgrade: upgradeRate * pax
+          });
+        }
+      }
+
+      for (const name of selectedCanapes) {
+        const dishObj = getDishObject("canapes", name);
+        if (dishObj && (dishObj.tier === "special" || dishObj.premium)) {
+          const upgradeRate = getDishUpgradePrice(dishObj) || 45;
+          list.push({
+            category: "canapes",
+            name: `${name} (Special Canapé Upgrade)`,
+            upgradePrice: upgradeRate,
+            totalUpgrade: upgradeRate * pax
+          });
+        }
+      }
+      return list;
+    }
+
     // 1. Special Main Dishes
     for (const name of selectedMainDishes) {
       const dishObj = getDishObject("", name);
       if (dishObj && (dishObj.tier === "special" || dishObj.premium)) {
         const upgradeRate = getDishUpgradePrice(dishObj);
-        list.push({ 
-          category: dishObj.category || "main", 
+        list.push({
+          category: dishObj.category || "main",
           name: name,
           upgradePrice: upgradeRate,
           totalUpgrade: upgradeRate * pax
@@ -376,13 +593,18 @@ export default function PricingCalculator({
     }
     return list;
   }, [
-    selectedMainDishes, 
-    selectedSpecialSide, 
-    selectedSpecialDessert, 
-    courseAllowances.specSidesCount, 
-    courseAllowances.specDessertsCount, 
-    swapDeal, 
-    dishesMenu, 
+    isConference,
+    isPicaPica,
+    isGrazingTable,
+    selectedSliders,
+    selectedCanapes,
+    selectedMainDishes,
+    selectedSpecialSide,
+    selectedSpecialDessert,
+    courseAllowances.specSidesCount,
+    courseAllowances.specDessertsCount,
+    swapDeal,
+    dishesMenu,
     pax
   ]);
 
@@ -405,22 +627,24 @@ export default function PricingCalculator({
   const addonsTotal = addonsList.reduce((acc, curr) => acc + curr.itemTotal, 0);
 
   const deliveryFee = useMemo(() => {
-    if (deliveryLocation === "custom") return Number(customDeliveryFee) || 0;
-    const loc = DELIVERY_LOCATIONS.find(l => l.id === deliveryLocation);
-    return loc ? loc.fee : 1500;
-  }, [deliveryLocation, customDeliveryFee]);
+    const baseFee = deliveryLocation === "custom"
+      ? (Number(customDeliveryFee) || 0)
+      : (DELIVERY_LOCATIONS.find(l => l.id === deliveryLocation)?.fee || 1500);
+    return isConference ? (baseFee * confDaysNum) : baseFee;
+  }, [deliveryLocation, customDeliveryFee, isConference, confDaysNum]);
 
   const subtotal = foodTotal + specialDishesUpgradeTotal + addonsTotal + deliveryFee;
 
-  const serviceCharge = isServiceCharge 
-    ? Math.round((subtotal) * (serviceChargePercent / 100)) 
+  const serviceCharge = isServiceCharge
+    ? Math.round((subtotal) * (serviceChargePercent / 100))
     : 0;
 
   // Non-VAT Official Quotation (VAT is for official receipts, not quotations)
   const grandTotal = Math.max(0, subtotal + serviceCharge - Number(discountAmount || 0));
-  const downpaymentRequired = Math.round(grandTotal * 0.50);
-  const balanceDue = grandTotal - downpaymentRequired;
-  const effectivePerPax = pax > 0 ? Math.round(grandTotal / pax) : 0;
+  // Government procurement relies on PO and LDDAP-ADA disbursement (0% cash advance DP)
+  const downpaymentRequired = isConference ? 0 : Math.round(grandTotal * 0.50);
+  const balanceDue = isConference ? grandTotal : (grandTotal - downpaymentRequired);
+  const effectivePerPax = pax > 0 ? Math.round(grandTotal / (pax * (isConference ? confDaysNum : 1))) : 0;
 
   const handleAddonToggle = (addonId) => {
     setSelectedAddons(prev => {
@@ -606,6 +830,50 @@ export default function PricingCalculator({
     setPendingSpecialUpgrade(null);
   };
 
+  const handleSliderToggle = (dishName) => {
+    const maxAllowed = isPicaPica ? (picaAllowances.sliders || 3) : (grazingAllowances.sliders || 4);
+    if (selectedSliders.includes(dishName)) {
+      setSelectedSliders(prev => prev.filter(n => n !== dishName));
+    } else {
+      if (selectedSliders.length < maxAllowed) {
+        setSelectedSliders(prev => [...prev, dishName]);
+      }
+    }
+  };
+
+  const handleCanapeToggle = (dishName) => {
+    const maxAllowed = isPicaPica ? (picaAllowances.canapes || 5) : (grazingAllowances.canapes || 5);
+    if (selectedCanapes.includes(dishName)) {
+      setSelectedCanapes(prev => prev.filter(n => n !== dishName));
+    } else {
+      if (selectedCanapes.length < maxAllowed) {
+        setSelectedCanapes(prev => [...prev, dishName]);
+      }
+    }
+  };
+
+  const handleFingerFoodToggle = (dishName) => {
+    const maxAllowed = picaAllowances.fingerFood || 3;
+    if (selectedFingerFoods.includes(dishName)) {
+      setSelectedFingerFoods(prev => prev.filter(n => n !== dishName));
+    } else {
+      if (selectedFingerFoods.length < maxAllowed) {
+        setSelectedFingerFoods(prev => [...prev, dishName]);
+      }
+    }
+  };
+
+  const handleMiniDessertToggle = (dishName) => {
+    const maxAllowed = picaAllowances.miniDesserts || 2;
+    if (selectedMiniDesserts.includes(dishName)) {
+      setSelectedMiniDesserts(prev => prev.filter(n => n !== dishName));
+    } else {
+      if (selectedMiniDesserts.length < maxAllowed) {
+        setSelectedMiniDesserts(prev => [...prev, dishName]);
+      }
+    }
+  };
+
   const renderViandCategory = (categoryKey, categoryTitle, icon) => {
     const allDishes = dishesMenu[categoryKey] || [];
     const regularDishes = allDishes.filter(d => d.tier !== "special" && !d.premium);
@@ -620,9 +888,9 @@ export default function PricingCalculator({
           <span className="category-name" style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--text-primary)" }}>
             {icon} {categoryTitle}
           </span>
-          <span style={{ 
-            fontSize: "0.82rem", 
-            color: countInCat > 0 ? "var(--gold-600)" : "var(--text-muted)", 
+          <span style={{
+            fontSize: "0.82rem",
+            color: countInCat > 0 ? "var(--gold-600)" : "var(--text-muted)",
             fontWeight: 700,
             background: countInCat > 0 ? "var(--gold-50)" : "var(--surface)",
             border: countInCat > 0 ? "1px solid var(--gold-300)" : "1px solid var(--border-subtle)",
@@ -636,16 +904,16 @@ export default function PricingCalculator({
         {/* REGULAR DISH SECTION */}
         <div style={{ marginBottom: "1.1rem" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.6rem" }}>
-            <span style={{ 
-              fontSize: "0.74rem", 
-              fontWeight: 800, 
-              letterSpacing: "0.06em", 
+            <span style={{
+              fontSize: "0.74rem",
+              fontWeight: 800,
+              letterSpacing: "0.06em",
               textTransform: "uppercase",
-              color: "#334155", 
-              background: "#f1f5f9", 
+              color: "#334155",
+              background: "#f1f5f9",
               border: "1px solid #cbd5e1",
-              padding: "2px 8px", 
-              borderRadius: "4px" 
+              padding: "2px 8px",
+              borderRadius: "4px"
             }}>
               (REGULAR DISH)
             </span>
@@ -687,15 +955,15 @@ export default function PricingCalculator({
         {specialDishes.length > 0 && (
           <div style={{ marginTop: "1rem", paddingTop: "0.85rem", borderTop: "1px dashed var(--border-subtle)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.6rem" }}>
-              <span style={{ 
-                fontSize: "0.74rem", 
-                fontWeight: 800, 
-                letterSpacing: "0.06em", 
+              <span style={{
+                fontSize: "0.74rem",
+                fontWeight: 800,
+                letterSpacing: "0.06em",
                 textTransform: "uppercase",
-                color: "#b45309", 
-                background: "#fef3c7", 
+                color: "#b45309",
+                background: "#fef3c7",
                 border: "1px solid #fde68a",
-                padding: "2px 8px", 
+                padding: "2px 8px",
                 borderRadius: "4px",
                 display: "inline-flex",
                 alignItems: "center",
@@ -757,10 +1025,43 @@ export default function PricingCalculator({
     const swapDealLabel = swapDeal === "extra_main"
       ? "Waive Rice, Drinks & Dessert ➔ +1 Main Dish"
       : swapDeal === "extra_side"
-      ? "Waive Rice & Softdrinks ➔ +1 Side Dish"
-      : null;
+        ? "Waive Rice & Softdrinks ➔ +1 Side Dish"
+        : null;
 
-    const allDishes = [
+    const allDishes = isConference ? [
+      `AM Snack: ${amSnackDish} & ${amSnackDrink}`,
+      ...selectedMainDishes.slice(0, 3).map(d => `Lunch Main: ${d}`),
+      `Lunch Side: ${selectedSides[0] || 'Side Dish'}`,
+      `Lunch Rice: ${riceOrSoup}`,
+      `Lunch Dessert: ${selectedDessertsList[0] || 'Dessert'}`,
+      `Lunch Drink: ${beverage}`,
+      `PM Snack: ${pmSnackDish} & ${pmSnackDrink}`,
+      ...dinnerMainDishes.map(d => `Dinner Main: ${d}`),
+      `Dinner Side: ${dinnerSide}`,
+      `Dinner Rice: ${dinnerRice}`,
+      `Dinner Dessert: ${dinnerDessert}`,
+      `Dinner Drink: ${dinnerDrink}`
+    ] : isPicaPica ? [
+      ...selectedSliders.map(s => `Slider: ${s}`),
+      ...selectedCanapes.map(c => `Canapé: ${c}`),
+      ...selectedFingerFoods.map(f => `Finger Food: ${f}`),
+      ...selectedMiniDesserts.map(d => `Mini Dessert: ${d}`),
+      ...(picaAllowances.hasKakanin ? ["Pinoy Kakanins Platter"] : []),
+      ...(picaAllowances.hasDiyStation ? [`Station: ${picaDiyStation}`] : []),
+      `Beverage: ${picaBeverage}`
+    ] : isGrazingTable ? [
+      "5 Kilos of Italian Cured Meats (Prosciutto, Salami, Coppa Ham)",
+      "5 Types of Imported Cheeses (Brie, Cheddar, Gouda, Colby Jack, Feta)",
+      "5 Big Seasonal Fruit Platters",
+      ...selectedCanapes.map(c => `Canapé: ${c}`),
+      ...selectedSliders.map(s => `Slider: ${s}`),
+      "Hungarian Sausage Platter",
+      "Assorted Nuts, Dried Fruits, Wafers, Pretzels & Crackers",
+      "Vegetable Sticks with Dips & Olives",
+      "Grazing Cups & Nachos Station",
+      ...(grazingAllowances.hasDessertShots ? ["Gourmet Dessert Shots"] : []),
+      "Artisan Breadbasket with Gourmet Jams & Bread"
+    ] : [
       ...selectedMainDishes,
       ...selectedSides,
       selectedSpecialSide ? selectedSpecialSide : null,
@@ -770,22 +1071,84 @@ export default function PricingCalculator({
       ...(swapDeal !== "none" ? [] : [beverage])
     ].filter(Boolean);
 
+    const conferenceMeals = isConference ? {
+      amSnack: {
+        title: "AM Snacks (09:30 AM)",
+        time: "09:30 AM",
+        rate: CONFERENCE_MEAL_RATES?.amSnack || 120,
+        sandwich: amSnackDish,
+        drink: amSnackDrink
+      },
+      lunch: {
+        title: "Lunch Buffet - Package 1 (12:00 PM)",
+        time: "12:00 PM",
+        rate: CONFERENCE_MEAL_RATES?.lunchPackage1 || 480,
+        packageName: "Package 1 (3 Mains, 1 Side, Rice, Dessert, Beverage)",
+        mains: selectedMainDishes.slice(0, 3),
+        side: selectedSides[0] || "Creamy Spaghetti",
+        rice: riceOrSoup,
+        dessert: selectedDessertsList[0] || "Mango Tapioca",
+        drink: beverage
+      },
+      pmSnack: {
+        title: "PM Snacks (03:00 PM)",
+        time: "03:00 PM",
+        rate: CONFERENCE_MEAL_RATES?.pmSnack || 140,
+        pasta: pmSnackDish,
+        drink: pmSnackDrink
+      },
+      dinner: {
+        title: "Dinner Buffet - Package 2 (06:30 PM)",
+        time: "06:30 PM",
+        rate: CONFERENCE_MEAL_RATES?.dinnerPackage2 || 550,
+        packageName: "Package 2 (4 Mains, 1 Side, Rice, Dessert, Beverage)",
+        mains: dinnerMainDishes,
+        side: dinnerSide,
+        rice: dinnerRice,
+        dessert: dinnerDessert,
+        drink: dinnerDrink
+      }
+    } : null;
+
     return {
       id: quoteId,
       createdAt: new Date().toISOString(),
       status: "Draft",
       ...clientInfo,
-      eventTypeName: eventTypeObj?.name || clientInfo.eventType,
-      packageId: currentPkg.id,
-      packageName: currentPkg.name,
+      isFoodTray,
+      isPicaPica,
+      isGrazingTable,
+      serviceType: isPicaPica ? "pica_pica" : isGrazingTable ? "grazing_table" : isFoodTray ? "food_tray" : (currentPkg.serviceType || "buffet"),
+      packagePrice: currentPkg.price || null,
+      paxRange: currentPkg.paxRange || null,
+      isConferenceBooking: isConference,
+      conferenceDays: isConference ? confDaysNum : 1,
+      conferenceEndDate: isConference ? getConferenceEndDate(clientInfo.eventDate, confDaysNum) : clientInfo.eventDate,
+      agencyPoNumber: agencyPoNumber || clientInfo.agencyPoNumber || "",
+      conferenceMeals,
+      eventTypeName: isConference
+        ? `Government / Multi-Day Conference (${confDaysNum} Days Full-Board)`
+        : (eventTypeObj?.name || clientInfo.eventType),
+      packageId: isConference ? "gov_conference_full_board" : currentPkg.id,
+      packageName: isConference
+        ? `Government Full-Board Conference (${confDaysNum} Days • 4 Meals/Day)`
+        : currentPkg.name,
       pax,
-      pricePerPax: currentPkg.pricePerPax,
+      pricePerPax: isConference ? (CONFERENCE_MEAL_RATES?.dailyTotal || 1290) : currentPkg.pricePerPax,
       foodTotal,
       swapDeal,
       swapDealLabel,
       mainDishesCount: selectedMainDishes.length,
       maxMainDishes,
       courseAllowances,
+      picaAllowances,
+      grazingAllowances,
+      selectedSliders,
+      selectedCanapes,
+      selectedFingerFoods,
+      selectedMiniDesserts,
+      picaDiyStation,
+      picaBeverage,
       specialDishesCount,
       specialDishesUpgradeRate: DEFAULT_SPECIAL_DISH_UPGRADE_RATE,
       specialDishesUpgradeTotal,
@@ -800,12 +1163,21 @@ export default function PricingCalculator({
       desserts: swapDeal === "extra_main" ? { regular: "Waived (Swapped)", regular2: "", special: null } : desserts,
       riceOrSoup: swapDeal !== "none" ? "Waived (Swapped)" : riceOrSoup,
       beverage: swapDeal !== "none" ? "Waived (Swapped)" : beverage,
+      amSnackDish,
+      amSnackDrink,
+      pmSnackDish,
+      pmSnackDrink,
+      dinnerMainDishes,
+      dinnerSide,
+      dinnerDessert,
+      dinnerDrink,
+      dinnerRice,
       otherDishes: {
         rice: swapDeal !== "none" ? "Waived (Swapped)" : riceOrSoup,
-        dessert: swapDeal === "extra_main" 
-          ? "Waived (Swapped for +1 Main Dish)" 
-          : (courseAllowances.regDessertsCount >= 2 
-            ? `${desserts.regular}, ${desserts.regular2 || "Buko Pandan"}` 
+        dessert: swapDeal === "extra_main"
+          ? "Waived (Swapped for +1 Main Dish)"
+          : (courseAllowances.regDessertsCount >= 2
+            ? `${desserts.regular}, ${desserts.regular2 || "Buko Pandan"}`
             : desserts.regular),
         dessertSpecial: swapDeal === "extra_main" ? null : (selectedSpecialDessert || null),
         drinks: swapDeal !== "none" ? "Waived (Swapped)" : beverage
@@ -909,7 +1281,233 @@ export default function PricingCalculator({
       });
     }
 
-    // 4. Main Dishes Selection
+    // If Government / Multi-Day Conference Booking
+    if (isConference) {
+      // Conference Meal 1: AM Snacks
+      if (!amSnackDish || !amSnackDish.trim()) {
+        missing.push({
+          id: "conf-am-snack",
+          category: "AM Snacks (09:30 AM)",
+          badge: "AM Snack",
+          targetId: "section-conf-am-snack",
+          title: "AM Snack Sandwich Required",
+          detail: "Please pick a Sandwich for the AM Snack session.",
+          icon: "🥪",
+          required: 1,
+          current: 0
+        });
+      }
+      if (!amSnackDrink || !amSnackDrink.trim()) {
+        missing.push({
+          id: "conf-am-drink",
+          category: "AM Snacks (09:30 AM)",
+          badge: "AM Drink",
+          targetId: "section-conf-am-snack",
+          title: "AM Snack Beverage Required",
+          detail: "Please select a Drink for the AM Snack session (e.g. Brewed Coffee or Juice).",
+          icon: "☕",
+          required: 1,
+          current: 0
+        });
+      }
+
+      // Conference Meal 2: Lunch Buffet (Package 1: 3 Mains, 1 Side, Rice, Dessert, Beverage)
+      const missingLunchMains = 3 - selectedMainDishes.length;
+      if (missingLunchMains > 0) {
+        missing.push({
+          id: "conf-lunch-mains",
+          category: "Lunch Buffet - Package 1 (12:00 PM)",
+          badge: "Lunch Mains",
+          targetId: "section-conf-lunch",
+          title: `Missing ${missingLunchMains} Lunch Main Dish${missingLunchMains > 1 ? "es" : ""}`,
+          detail: `Lunch Package 1 includes 3 regular main viands. Please choose ${missingLunchMains} more dish(es).`,
+          icon: "🍱",
+          required: 3,
+          current: selectedMainDishes.length
+        });
+      }
+      if (selectedSides.length < 1) {
+        missing.push({
+          id: "conf-lunch-side",
+          category: "Lunch Buffet - Package 1 (12:00 PM)",
+          badge: "Lunch Side",
+          targetId: "section-conf-lunch",
+          title: "Lunch Side Dish Required",
+          detail: "Please select 1 Side Dish (Noodles or Vegetables) for the Lunch Buffet.",
+          icon: "🥗",
+          required: 1,
+          current: 0
+        });
+      }
+
+      // Conference Meal 3: PM Snacks
+      if (!pmSnackDish || !pmSnackDish.trim()) {
+        missing.push({
+          id: "conf-pm-snack",
+          category: "PM Snacks (03:00 PM)",
+          badge: "PM Snack",
+          targetId: "section-conf-pm-snack",
+          title: "PM Snack Pasta Required",
+          detail: "Please select a Pasta / Noodles choice for the afternoon snack.",
+          icon: "🍝",
+          required: 1,
+          current: 0
+        });
+      }
+      if (!pmSnackDrink || !pmSnackDrink.trim()) {
+        missing.push({
+          id: "conf-pm-drink",
+          category: "PM Snacks (03:00 PM)",
+          badge: "PM Drink",
+          targetId: "section-conf-pm-snack",
+          title: "PM Snack Drink Required",
+          detail: "Please select a Drink for the afternoon snack (e.g. Soda or Iced Tea).",
+          icon: "🥤",
+          required: 1,
+          current: 0
+        });
+      }
+
+      // Conference Meal 4: Dinner Buffet (Package 2: 4 Mains, 1 Side, Rice, Dessert, Beverage)
+      const missingDinnerMains = 4 - dinnerMainDishes.length;
+      if (missingDinnerMains > 0) {
+        missing.push({
+          id: "conf-dinner-mains",
+          category: "Dinner Buffet - Package 2 (06:30 PM)",
+          badge: "Dinner Mains",
+          targetId: "section-conf-dinner",
+          title: `Missing ${missingDinnerMains} Dinner Main Dish${missingDinnerMains > 1 ? "es" : ""}`,
+          detail: `Dinner Package 2 includes 4 main viands. Please select ${missingDinnerMains} more dish(es).`,
+          icon: "🍽️",
+          required: 4,
+          current: dinnerMainDishes.length
+        });
+      }
+
+      return missing;
+    }
+
+    // If Pica Pica Station Booking
+    if (isPicaPica) {
+      const allowedSliders = picaAllowances.sliders || 2;
+      const missingSliders = allowedSliders - selectedSliders.length;
+      if (missingSliders > 0) {
+        missing.push({
+          id: "pica-sliders",
+          category: "Pica Pica Sliders",
+          badge: "Sliders",
+          targetId: "section-pica-curation",
+          title: `Missing ${missingSliders} Slider${missingSliders > 1 ? "s" : ""}`,
+          detail: `${currentPkg.name} includes ${allowedSliders} sliders. Please select ${missingSliders} more slider(s).`,
+          icon: "🍔",
+          required: allowedSliders,
+          current: selectedSliders.length
+        });
+      }
+
+      const allowedCanapes = picaAllowances.canapes || 5;
+      const missingCanapes = allowedCanapes - selectedCanapes.length;
+      if (missingCanapes > 0) {
+        missing.push({
+          id: "pica-canapes",
+          category: "Pica Pica Canapés",
+          badge: "Canapés",
+          targetId: "section-pica-curation",
+          title: `Missing ${missingCanapes} Canapé${missingCanapes > 1 ? "s" : ""}`,
+          detail: `${currentPkg.name} includes ${allowedCanapes} canapés. Please select ${missingCanapes} more canapé(s).`,
+          icon: "🥖",
+          required: allowedCanapes,
+          current: selectedCanapes.length
+        });
+      }
+
+      const allowedFingerFood = picaAllowances.fingerFood || 2;
+      const missingFingerFood = allowedFingerFood - selectedFingerFoods.length;
+      if (missingFingerFood > 0) {
+        missing.push({
+          id: "pica-fingerfood",
+          category: "Finger Food",
+          badge: "Finger Food",
+          targetId: "section-pica-curation",
+          title: `Missing ${missingFingerFood} Finger Food Item${missingFingerFood > 1 ? "s" : ""}`,
+          detail: `${currentPkg.name} includes ${allowedFingerFood} finger food choices. Please select ${missingFingerFood} more item(s).`,
+          icon: "🍗",
+          required: allowedFingerFood,
+          current: selectedFingerFoods.length
+        });
+      }
+
+      const allowedDesserts = picaAllowances.miniDesserts || 2;
+      const missingDesserts = allowedDesserts - selectedMiniDesserts.length;
+      if (missingDesserts > 0) {
+        missing.push({
+          id: "pica-desserts",
+          category: "Mini Desserts",
+          badge: "Desserts",
+          targetId: "section-pica-curation",
+          title: `Missing ${missingDesserts} Mini Dessert Cup${missingDesserts > 1 ? "s" : ""}`,
+          detail: `${currentPkg.name} includes ${allowedDesserts} mini dessert cups. Please select ${missingDesserts} more dessert(s).`,
+          icon: "🧁",
+          required: allowedDesserts,
+          current: selectedMiniDesserts.length
+        });
+      }
+
+      if (!picaBeverage || !picaBeverage.trim()) {
+        missing.push({
+          id: "pica-beverage",
+          category: "Cocktail Beverage",
+          badge: "Beverage",
+          targetId: "section-pica-curation",
+          title: "Beverage Choice Required",
+          detail: "Please choose Juice or Brewed Coffee for your cocktail station.",
+          icon: "☕",
+          required: 1,
+          current: 0
+        });
+      }
+
+      return missing;
+    }
+
+    // If Grazing Table Booking
+    if (isGrazingTable) {
+      const allowedCanapes = grazingAllowances.canapes || 5;
+      const missingCanapes = allowedCanapes - selectedCanapes.length;
+      if (missingCanapes > 0) {
+        missing.push({
+          id: "grazing-canapes",
+          category: "Grazing Table Canapés",
+          badge: "Canapés",
+          targetId: "section-pica-curation",
+          title: `Missing ${missingCanapes} Canapé${missingCanapes > 1 ? "s" : ""}`,
+          detail: `${currentPkg.name} includes ${allowedCanapes} canapés. Please select ${missingCanapes} more canapé(s).`,
+          icon: "🥖",
+          required: allowedCanapes,
+          current: selectedCanapes.length
+        });
+      }
+
+      const allowedSliders = grazingAllowances.sliders || 4;
+      const missingSliders = allowedSliders - selectedSliders.length;
+      if (missingSliders > 0) {
+        missing.push({
+          id: "grazing-sliders",
+          category: "Grazing Table Sliders",
+          badge: "Sliders",
+          targetId: "section-pica-curation",
+          title: `Missing ${missingSliders} Slider${missingSliders > 1 ? "s" : ""}`,
+          detail: `${currentPkg.name} includes ${allowedSliders} sliders. Please select ${missingSliders} more slider(s).`,
+          icon: "🍔",
+          required: allowedSliders,
+          current: selectedSliders.length
+        });
+      }
+
+      return missing;
+    }
+
+    // 4. Main Dishes Selection (Standard Single-Event Booking)
     const missingMainCount = maxMainDishes - selectedMainDishes.length;
     if (missingMainCount > 0) {
       missing.push({
@@ -960,69 +1558,72 @@ export default function PricingCalculator({
       });
     }
 
-    // 7. Regular Desserts
-    const regDessertsRequired = courseAllowances.regDessertsCount || 0;
-    if (regDessertsRequired > 0) {
-      const missingRegDesserts = regDessertsRequired - selectedDessertsList.length;
-      if (missingRegDesserts > 0) {
+    // For Food Tray packages, desserts, rice, and beverage are not mandatory buffet inclusions
+    if (!isFoodTray) {
+      // 7. Regular Desserts
+      const regDessertsRequired = courseAllowances.regDessertsCount || 0;
+      if (regDessertsRequired > 0) {
+        const missingRegDesserts = regDessertsRequired - selectedDessertsList.length;
+        if (missingRegDesserts > 0) {
+          missing.push({
+            id: "reg-desserts",
+            category: "Regular Desserts",
+            badge: "Desserts",
+            targetId: "section-desserts",
+            title: `Missing ${missingRegDesserts} Regular Dessert${missingRegDesserts > 1 ? "s" : ""}`,
+            detail: `${currentPkg.name} includes ${regDessertsRequired} regular dessert${regDessertsRequired > 1 ? "s" : ""}. You have chosen ${selectedDessertsList.length} of ${regDessertsRequired}. Click a dessert menu box below.`,
+            icon: "🍮",
+            required: regDessertsRequired,
+            current: selectedDessertsList.length
+          });
+        }
+      }
+
+      // 8. Special Dessert
+      const specDessertsRequired = courseAllowances.specDessertsCount || 0;
+      if (specDessertsRequired > 0 && (!selectedSpecialDessert || !selectedSpecialDessert.trim())) {
         missing.push({
-          id: "reg-desserts",
-          category: "Regular Desserts",
-          badge: "Desserts",
+          id: "spec-dessert",
+          category: "Special Dessert",
+          badge: "Special Dessert",
           targetId: "section-desserts",
-          title: `Missing ${missingRegDesserts} Regular Dessert${missingRegDesserts > 1 ? "s" : ""}`,
-          detail: `${currentPkg.name} includes ${regDessertsRequired} regular dessert${regDessertsRequired > 1 ? "s" : ""}. You have chosen ${selectedDessertsList.length} of ${regDessertsRequired}. Click a dessert menu box below.`,
-          icon: "🍮",
-          required: regDessertsRequired,
-          current: selectedDessertsList.length
+          title: "Missing 1 Special Dessert",
+          detail: `${currentPkg.name} includes 1 Special Dessert (₱0 upgrade). Please click a Special Dessert menu box (e.g. Assorted Pinoy Kakanins, Decadent Chocolate Cake).`,
+          icon: "⭐",
+          required: 1,
+          current: 0
         });
       }
-    }
 
-    // 8. Special Dessert
-    const specDessertsRequired = courseAllowances.specDessertsCount || 0;
-    if (specDessertsRequired > 0 && (!selectedSpecialDessert || !selectedSpecialDessert.trim())) {
-      missing.push({
-        id: "spec-dessert",
-        category: "Special Dessert",
-        badge: "Special Dessert",
-        targetId: "section-desserts",
-        title: "Missing 1 Special Dessert",
-        detail: `${currentPkg.name} includes 1 Special Dessert (₱0 upgrade). Please click a Special Dessert menu box (e.g. Assorted Pinoy Kakanins, Decadent Chocolate Cake).`,
-        icon: "⭐",
-        required: 1,
-        current: 0
-      });
-    }
+      // 9. Rice or Soup Choice (only required if not waived in swap deal)
+      if (swapDeal === "none" && (!riceOrSoup || !riceOrSoup.trim())) {
+        missing.push({
+          id: "rice-soup",
+          category: "Rice & Soup Choice",
+          badge: "Rice/Soup",
+          targetId: "section-rice-drinks",
+          title: "Choice of Rice or Soup Required",
+          detail: "Please choose your buffet starch (Steamed Jasmine Rice, Garlic Rice, or Savory Hot Soup).",
+          icon: "🍚",
+          required: 1,
+          current: 0
+        });
+      }
 
-    // 9. Rice or Soup Choice (only required if not waived in swap deal)
-    if (swapDeal === "none" && (!riceOrSoup || !riceOrSoup.trim())) {
-      missing.push({
-        id: "rice-soup",
-        category: "Rice & Soup Choice",
-        badge: "Rice/Soup",
-        targetId: "section-rice-drinks",
-        title: "Choice of Rice or Soup Required",
-        detail: "Please choose your buffet starch (Steamed Jasmine Rice, Garlic Rice, or Savory Hot Soup).",
-        icon: "🍚",
-        required: 1,
-        current: 0
-      });
-    }
-
-    // 10. Beverage Choice (only required if not waived in swap deal)
-    if (swapDeal === "none" && (!beverage || !beverage.trim())) {
-      missing.push({
-        id: "beverage",
-        category: "Beverage Choice",
-        badge: "Drinks",
-        targetId: "section-rice-drinks",
-        title: "Choice of Beverage Required",
-        detail: "Please select the included bottomless beverage (Soda or Juice) for your event.",
-        icon: "🍹",
-        required: 1,
-        current: 0
-      });
+      // 10. Beverage Choice (only required if not waived in swap deal)
+      if (swapDeal === "none" && (!beverage || !beverage.trim())) {
+        missing.push({
+          id: "beverage",
+          category: "Beverage Choice",
+          badge: "Drinks",
+          targetId: "section-rice-drinks",
+          title: "Choice of Beverage Required",
+          detail: "Please select the included bottomless beverage (Soda or Juice) for your event.",
+          icon: "🍹",
+          required: 1,
+          current: 0
+        });
+      }
     }
 
     return missing;
@@ -1044,7 +1645,7 @@ export default function PricingCalculator({
     const quote = compiledQuotationData();
     quote.status = "Pending";
     const res = await onSaveQuote(quote);
-    
+
     confetti({
       particleCount: 80,
       spread: 80,
@@ -1070,7 +1671,7 @@ export default function PricingCalculator({
     <div className="calculator-grid">
       {/* Left Column: Interactive Form & Selections */}
       <div className="calculator-controls">
-        
+
         {/* Step 1: Client & Event Information */}
         <div className="card-section" id="section-client-details">
           <div className="section-header">
@@ -1141,6 +1742,77 @@ export default function PricingCalculator({
                 ))}
               </select>
             </div>
+
+            {isConference && (
+              <div style={{
+                gridColumn: "1 / -1",
+                background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)",
+                border: "1.5px solid #93c5fd",
+                borderRadius: "12px",
+                padding: "1.1rem 1.25rem",
+                marginTop: "0.25rem",
+                marginBottom: "0.5rem"
+              }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span style={{ fontSize: "1.3rem" }}>🏛️</span>
+                    <div>
+                      <strong style={{ color: "#1e3a8a", fontSize: "0.95rem" }}>Government / Multi-Day Conference Setup</strong>
+                      <div style={{ fontSize: "0.74rem", color: "#2563eb" }}>Automated 4-meal daily billing with zero upfront cash advance requirement (PO backed)</div>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: "0.72rem", background: "#bfdbfe", color: "#1e40af", padding: "2px 8px", borderRadius: "12px", fontWeight: 800 }}>
+                    LDDAP-ADA / PO Compatible
+                  </span>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "1rem" }}>
+                  <div>
+                    <label className="form-label" style={{ fontSize: "0.8rem", color: "#1e40af" }}>Conference Duration (Days) *</label>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <input
+                        type="number"
+                        min="1"
+                        max="14"
+                        className="form-input"
+                        value={conferenceDays}
+                        onChange={(e) => {
+                          const val = Math.max(1, Number(e.target.value) || 1);
+                          setConferenceDays(val);
+                          setClientInfo(prev => ({ ...prev, conferenceDays: val }));
+                        }}
+                        style={{ fontWeight: 800, fontSize: "1rem", maxWidth: "120px" }}
+                      />
+                      <span style={{ fontSize: "0.85rem", color: "#1e3a8a", fontWeight: 700 }}>
+                        {conferenceDays} Continuous {conferenceDays === 1 ? "Day" : "Days"}
+                      </span>
+                    </div>
+                    {clientInfo.eventDate && (
+                      <div style={{ fontSize: "0.76rem", color: "#1d4ed8", fontWeight: 600, marginTop: "6px" }}>
+                        📅 Multi-Day Schedule: <strong>{new Date(clientInfo.eventDate).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}</strong> to <strong>{new Date(getConferenceEndDate(clientInfo.eventDate, conferenceDays)).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}</strong>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="form-label" style={{ fontSize: "0.8rem", color: "#1e40af" }}>Agency Purchase Order (PO) / PR Reference (Optional)</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={agencyPoNumber}
+                      onChange={(e) => {
+                        setAgencyPoNumber(e.target.value);
+                        setClientInfo(prev => ({ ...prev, agencyPoNumber: e.target.value }));
+                      }}
+                      placeholder="e.g. PO-2026-0382 / PR-DEPED-091"
+                    />
+                    <div style={{ fontSize: "0.72rem", color: "#3b82f6", marginTop: "4px" }}>
+                      Gov't Terms: 0% advance deposit. Net 30/45 days via LDDAP-ADA on submission of DR & billing.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="form-group">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
@@ -1217,6 +1889,9 @@ export default function PricingCalculator({
                 value={clientInfo.eventTime}
                 onChange={(e) => setClientInfo({ ...clientInfo, eventTime: e.target.value })}
               />
+              <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "3px", display: "block" }}>
+                Serving: <strong>{formatTime12Hour(clientInfo.eventTime)}</strong>
+              </span>
             </div>
 
             <div className="form-group">
@@ -1243,46 +1918,406 @@ export default function PricingCalculator({
           </div>
         </div>
 
-        {/* Step 2: Catering Package & Pax Counter */}
+        {/* Step 2: Catering Service, Package & Pax Counter */}
         <div className="card-section">
           <div className="section-header">
             <div className="section-title">
               <div className="step-number">2</div>
-              <span>Select Catering Package & Guest Count</span>
+              <span>{isConference ? "Government Conference Meal Package & Pax" : "Select Catering Service & Package"}</span>
             </div>
             <span style={{ fontSize: "0.75rem", color: "var(--gold-400)", fontWeight: 700 }}>
-              Per Pax Pricing (PHP)
+              {isConference ? "Full-Board Daily Rate (PHP)" : isFoodTray ? "Food Tray / Party Rates (PHP)" : "Per Pax Pricing (PHP)"}
             </span>
           </div>
 
-          <div className="package-tiers-grid">
-            {packagesList.map(pkg => (
-              <div
-                key={pkg.id}
-                className={`package-card ${selectedPkgId === pkg.id ? "selected" : ""}`}
+          {!isConference && (
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: "0.75rem",
+              marginBottom: "1.25rem",
+              background: "rgba(241, 245, 249, 0.7)",
+              padding: "6px",
+              borderRadius: "14px",
+              border: "1px solid var(--border-subtle)"
+            }}>
+              {/* 1. Buffet */}
+              <button
+                type="button"
                 onClick={() => {
-                  setSelectedPkgId(pkg.id);
-                  if (pax < pkg.minPax) setPax(pkg.minPax);
+                  setActiveServiceType("buffet");
+                  const firstBuffet = packagesList.find(p => p.serviceType === "buffet" || (!p.serviceType && !p.id?.startsWith("food_tray") && !p.id?.startsWith("pica_pica") && !p.id?.startsWith("grazing_table"))) || packagesList[0];
+                  if (firstBuffet) {
+                    setSelectedPkgId(firstBuffet.id);
+                    setPax(Math.max(firstBuffet.minPax || 50, 100));
+                  }
+                  setIsServiceCharge(true);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                  padding: "0.85rem 0.9rem",
+                  borderRadius: "10px",
+                  border: activeServiceType === "buffet" ? "2px solid var(--gold-500)" : "1px solid transparent",
+                  background: activeServiceType === "buffet" ? "#ffffff" : "transparent",
+                  boxShadow: activeServiceType === "buffet" ? "0 4px 12px rgba(217, 119, 6, 0.12)" : "none",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  transition: "all 0.2s ease"
                 }}
               >
-                <div className="pkg-badge">{pkg.badge}</div>
-                <div className="pkg-name">{pkg.name}</div>
-                <div className="pkg-subtitle">{pkg.subtitle}</div>
-                <div className="pkg-price-row">
-                  <span className="pkg-price">₱{pkg.pricePerPax}</span>
-                  <span className="pkg-unit">/ pax (min {pkg.minPax} pax)</span>
+                <span style={{ fontSize: "1.4rem" }}>🍽️</span>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: "0.88rem", color: activeServiceType === "buffet" ? "var(--gold-600)" : "var(--text-primary)" }}>
+                    Full Buffet
+                  </div>
+                  <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
+                    Complete dining setup & waitstaff (Min 50 Pax)
+                  </div>
                 </div>
-                <ul className="pkg-inclusions">
-                  {pkg.inclusions.slice(0, 4).map((inc, i) => (
-                    <li key={i}>
-                      <Check size={14} />
-                      <span>{inc}</span>
-                    </li>
-                  ))}
-                </ul>
+              </button>
+
+              {/* 2. Food Tray */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveServiceType("food_tray");
+                  const firstTray = packagesList.find(p => p.serviceType === "food_tray" || p.id?.startsWith("food_tray"));
+                  if (firstTray) {
+                    setSelectedPkgId(firstTray.id);
+                    setPax(firstTray.minPax || 15);
+                  }
+                  setIsServiceCharge(false); // Party trays delivered without on-site waitstaff
+                  setDeliveryLocation("iloilo_free");
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                  padding: "0.85rem 0.9rem",
+                  borderRadius: "10px",
+                  border: activeServiceType === "food_tray" ? "2px solid var(--gold-500)" : "1px solid transparent",
+                  background: activeServiceType === "food_tray" ? "#ffffff" : "transparent",
+                  boxShadow: activeServiceType === "food_tray" ? "0 4px 12px rgba(217, 119, 6, 0.12)" : "none",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  transition: "all 0.2s ease"
+                }}
+              >
+                <span style={{ fontSize: "1.4rem" }}>🍱</span>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                    <span style={{ fontWeight: 800, fontSize: "0.88rem", color: activeServiceType === "food_tray" ? "var(--gold-600)" : "var(--text-primary)" }}>
+                      Food Trays
+                    </span>
+                    <span style={{ fontSize: "0.64rem", background: "#fef3c7", color: "#b45309", padding: "1px 5px", borderRadius: "8px", fontWeight: 800 }}>
+                      Party
+                    </span>
+                  </div>
+                  <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
+                    3 Mains + 2 Sides or 1 Regular Viand Tray
+                  </div>
+                </div>
+              </button>
+
+              {/* 3. Pica Pica Station */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveServiceType("pica_pica");
+                  const firstPica = packagesList.find(p => p.serviceType === "pica_pica" || p.id?.startsWith("pica_pica"));
+                  if (firstPica) {
+                    setSelectedPkgId(firstPica.id);
+                    setPax(Math.max(firstPica.minPax || 50, 50));
+                  }
+                  setIsServiceCharge(true);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                  padding: "0.85rem 0.9rem",
+                  borderRadius: "10px",
+                  border: activeServiceType === "pica_pica" ? "2px solid #059669" : "1px solid transparent",
+                  background: activeServiceType === "pica_pica" ? "#ffffff" : "transparent",
+                  boxShadow: activeServiceType === "pica_pica" ? "0 4px 12px rgba(5, 150, 105, 0.15)" : "none",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  transition: "all 0.2s ease"
+                }}
+              >
+                <span style={{ fontSize: "1.4rem" }}>🍢</span>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                    <span style={{ fontWeight: 800, fontSize: "0.88rem", color: activeServiceType === "pica_pica" ? "#047857" : "var(--text-primary)" }}>
+                      Pica Pica Station
+                    </span>
+                    <span style={{ fontSize: "0.64rem", background: "#d1fae5", color: "#065f46", padding: "1px 5px", borderRadius: "8px", fontWeight: 800 }}>
+                      ₱300+
+                    </span>
+                  </div>
+                  <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
+                    Cocktail sliders, canapés, finger foods & desserts
+                  </div>
+                </div>
+              </button>
+
+              {/* 4. Grazing Table */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveServiceType("grazing_table");
+                  const firstGrazing = packagesList.find(p => p.serviceType === "grazing_table" || p.id?.startsWith("grazing_table"));
+                  if (firstGrazing) {
+                    setSelectedPkgId(firstGrazing.id);
+                    setPax(firstGrazing.minPax || 100);
+                  }
+                  setIsServiceCharge(true);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                  padding: "0.85rem 0.9rem",
+                  borderRadius: "10px",
+                  border: activeServiceType === "grazing_table" ? "2px solid #7c3aed" : "1px solid transparent",
+                  background: activeServiceType === "grazing_table" ? "#ffffff" : "transparent",
+                  boxShadow: activeServiceType === "grazing_table" ? "0 4px 12px rgba(124, 58, 237, 0.15)" : "none",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  transition: "all 0.2s ease"
+                }}
+              >
+                <span style={{ fontSize: "1.4rem" }}>🧀</span>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                    <span style={{ fontWeight: 800, fontSize: "0.88rem", color: activeServiceType === "grazing_table" ? "#5b21b6" : "var(--text-primary)" }}>
+                      Grazing Table
+                    </span>
+                    <span style={{ fontSize: "0.64rem", background: "#ede9fe", color: "#6d28d9", padding: "1px 5px", borderRadius: "8px", fontWeight: 800 }}>
+                      Artisan
+                    </span>
+                  </div>
+                  <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
+                    Luxury Charcuterie, 5kg Cured Meats & Cheeses
+                  </div>
+                </div>
+              </button>
+            </div>
+          )}
+
+          {/* Food Tray Flyer Notice Banner */}
+          {isFoodTray && !isConference && (
+            <div style={{
+              background: "linear-gradient(135deg, #fefce8 0%, #fffbeb 100%)",
+              border: "1.5px solid #fde047",
+              borderRadius: "12px",
+              padding: "1rem 1.25rem",
+              marginBottom: "1.25rem"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ fontSize: "1.2rem" }}>🚚</span>
+                  <strong style={{ color: "#854d0e", fontSize: "0.92rem" }}>
+                    Palatable Food Tray Delivery Notice
+                  </strong>
+                </div>
+                <span style={{ fontSize: "0.74rem", background: "#fef08a", color: "#713f12", padding: "2px 8px", borderRadius: "8px", fontWeight: 700 }}>
+                  Free Local Transport
+                </span>
               </div>
-            ))}
-          </div>
+              <div style={{ fontSize: "0.78rem", color: "#713f12", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "0.5rem" }}>
+                <div>• <strong>Free Transportation Fee</strong> for: Iloilo City, Pavia, Sta. Barbara, Cabatuan, Maasin, San Miguel, Janiuay.</div>
+                <div>• <strong>Advance Notice</strong>: Bookings must be placed at least <strong>2-3 days prior</strong> to event.</div>
+                <div>• <strong>Payment Terms</strong>: 50% Downpayment to assure booking; remaining balance upon delivery.</div>
+                <div>• <strong>Cancellation</strong>: Strictly no cancellation of orders. 70% collected if orders are cancelled.</div>
+              </div>
+            </div>
+          )}
+
+          {/* Pica Pica Flyer Notice Banner */}
+          {isPicaPica && !isConference && (
+            <div style={{
+              background: "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)",
+              border: "1.5px solid #86efac",
+              borderRadius: "12px",
+              padding: "1rem 1.25rem",
+              marginBottom: "1.25rem"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ fontSize: "1.2rem" }}>🍢</span>
+                  <strong style={{ color: "#166534", fontSize: "0.92rem" }}>
+                    The Palatable Pica Pica Cocktail Station
+                  </strong>
+                </div>
+                <span style={{ fontSize: "0.74rem", background: "#bbf7d0", color: "#14532d", padding: "2px 8px", borderRadius: "8px", fontWeight: 700 }}>
+                  Minimum Booking: 50 PAX
+                </span>
+              </div>
+              <div style={{ fontSize: "0.78rem", color: "#166534", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "0.5rem" }}>
+                <div>• <strong>Cocktail Setup Included</strong>: Rustic wooden risers, cocktail toothpicks, cocktail paper napkins & elegant food markers.</div>
+                <div>• <strong>Continuous Refill</strong>: Dedicated on-site attendant for 4 hours event replenishment.</div>
+                <div>• <strong>Special Upgrades</strong>: Gourmet special sliders & canapés (pastrami, prosciutto, shrimp cocktail) available at +₱45/pax.</div>
+                <div>• <strong>Option 3 Grand</strong>: Includes Traditional Pinoy Kakanin + choice of DIY Nacho or DIY Mini Doughnut Station!</div>
+              </div>
+            </div>
+          )}
+
+          {/* Grazing Table Flyer Notice Banner */}
+          {isGrazingTable && !isConference && (
+            <div style={{
+              background: "linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)",
+              border: "1.5px solid #c4b5fd",
+              borderRadius: "12px",
+              padding: "1rem 1.25rem",
+              marginBottom: "1.25rem"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ fontSize: "1.2rem" }}>🧀</span>
+                  <strong style={{ color: "#5b21b6", fontSize: "0.92rem" }}>
+                    The Palatable Artisan Grazing Table Spread
+                  </strong>
+                </div>
+                <span style={{ fontSize: "0.74rem", background: "#ddd6fe", color: "#4c1d95", padding: "2px 8px", borderRadius: "8px", fontWeight: 700 }}>
+                  Luxury Charcuterie Setup
+                </span>
+              </div>
+              <div style={{ fontSize: "0.78rem", color: "#5b21b6", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "0.5rem" }}>
+                <div>• <strong>Grand Inclusions</strong>: 5 Kilos Italian Cured Meats, 5 Imported Cheeses, 5 Big Fruit Platters, Hungarian Sausage, Artisan Breads.</div>
+                <div>• <strong>Included Savory Finger Fare</strong>: 5 Canapés + 4 Sliders of your choice from our gourmet library.</div>
+                <div>• <strong>Deluxe vs Premium</strong>: Deluxe (100–150 PAX @ ₱85k) | Premium (150–200 PAX @ ₱105k with Gourmet Dessert Shots).</div>
+                <div>• <strong>Ingress & Styling</strong>: Requires 2-3 hours on-site ingress styling with fresh eucalyptus, wooden boards, and risers.</div>
+              </div>
+            </div>
+          )}
+
+          {isConference ? (
+            <div style={{
+              background: "linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%)",
+              border: "2px solid #3b82f6",
+              borderRadius: "14px",
+              padding: "1.5rem",
+              marginBottom: "1.5rem"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1rem", marginBottom: "1rem" }}>
+                <div>
+                  <div style={{ display: "inline-block", background: "#2563eb", color: "#ffffff", padding: "3px 10px", borderRadius: "12px", fontSize: "0.72rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "6px" }}>
+                    Official Government Conference Meal Package
+                  </div>
+                  <h3 style={{ margin: 0, fontSize: "1.3rem", fontWeight: 800, color: "#1e3a8a" }}>
+                    Full-Board Conference Catering (4 Meals Daily)
+                  </h3>
+                  <p style={{ margin: "4px 0 0 0", fontSize: "0.85rem", color: "#475569" }}>
+                    Standard full-board catering designed for government seminars, training workshops, and official conferences.
+                  </p>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: "1.6rem", fontWeight: 900, color: "#1e40af", fontFamily: "monospace" }}>
+                    ₱1,290.00
+                  </div>
+                  <div style={{ fontSize: "0.78rem", color: "#64748b", fontWeight: 600 }}>
+                    / pax / day (Min 30 pax)
+                  </div>
+                </div>
+              </div>
+
+              {/* 4-Meal Daily Breakdown Badges */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "0.75rem", marginTop: "0.75rem" }}>
+                <div style={{ background: "#ffffff", border: "1px solid #bfdbfe", borderRadius: "10px", padding: "0.85rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                    <span style={{ fontWeight: 800, fontSize: "0.85rem", color: "#1e40af" }}>🥪 AM Snacks</span>
+                    <span style={{ fontWeight: 700, fontSize: "0.8rem", color: "#2563eb" }}>₱120/pax</span>
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "#475569" }}>Serving: 09:30 AM</div>
+                  <div style={{ fontSize: "0.75rem", color: "#334155", fontWeight: 600, marginTop: "2px" }}>Sandwich + Hot/Cold Beverage</div>
+                </div>
+
+                <div style={{ background: "#ffffff", border: "1px solid #bbf7d0", borderRadius: "10px", padding: "0.85rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                    <span style={{ fontWeight: 800, fontSize: "0.85rem", color: "#166534" }}>🍱 Lunch Buffet</span>
+                    <span style={{ fontWeight: 700, fontSize: "0.8rem", color: "#16a34a" }}>₱480/pax</span>
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "#475569" }}>Serving: 12:00 PM • Package 1</div>
+                  <div style={{ fontSize: "0.75rem", color: "#334155", fontWeight: 600, marginTop: "2px" }}>3 Mains + 1 Side + Rice + Dessert + Drink</div>
+                </div>
+
+                <div style={{ background: "#ffffff", border: "1px solid #fed7aa", borderRadius: "10px", padding: "0.85rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                    <span style={{ fontWeight: 800, fontSize: "0.85rem", color: "#9a3412" }}>🍝 PM Snacks</span>
+                    <span style={{ fontWeight: 700, fontSize: "0.8rem", color: "#ea580c" }}>₱140/pax</span>
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "#475569" }}>Serving: 03:00 PM</div>
+                  <div style={{ fontSize: "0.75rem", color: "#334155", fontWeight: 600, marginTop: "2px" }}>Hot Pasta / Noodles + Cold Drink</div>
+                </div>
+
+                <div style={{ background: "#ffffff", border: "1px solid #ddd6fe", borderRadius: "10px", padding: "0.85rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                    <span style={{ fontWeight: 800, fontSize: "0.85rem", color: "#5b21b6" }}>🍽️ Dinner Buffet</span>
+                    <span style={{ fontWeight: 700, fontSize: "0.8rem", color: "#7c3aed" }}>₱550/pax</span>
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "#475569" }}>Serving: 06:30 PM • Package 2</div>
+                  <div style={{ fontSize: "0.75rem", color: "#334155", fontWeight: 600, marginTop: "2px" }}>4 Mains + 1 Side + Rice + Dessert + Drink</div>
+                </div>
+              </div>
+
+              <div style={{ marginTop: "1rem", paddingTop: "0.85rem", borderTop: "1px dashed #93c5fd", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
+                <span style={{ fontSize: "0.82rem", color: "#1e40af", fontWeight: 700 }}>
+                  Guaranteed Duration: {conferenceDays} {conferenceDays === 1 ? "Day" : "Days"} × {pax} Pax = {(conferenceDays * pax).toLocaleString()} Total Meal Covers
+                </span>
+                <span style={{ fontSize: "0.95rem", color: "#1e3a8a", fontWeight: 800 }}>
+                  Daily Food Total: ₱{(pax * 1290).toLocaleString()} / day
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="package-tiers-grid">
+              {displayPackages.map(pkg => {
+                const isSelected = selectedPkgId === pkg.id;
+                const hasFixedPrice = typeof pkg.price === "number" && pkg.price > 0;
+                return (
+                  <div
+                    key={pkg.id}
+                    className={`package-card ${isSelected ? "selected" : ""}`}
+                    onClick={() => {
+                      setSelectedPkgId(pkg.id);
+                      if (pax < (pkg.minPax || 10)) setPax(pkg.minPax || 10);
+                    }}
+                    style={{
+                      border: isSelected ? "2px solid var(--gold-500)" : "1px solid var(--border-subtle)"
+                    }}
+                  >
+                    <div className="pkg-badge">{pkg.badge || (pkg.serviceType === "food_tray" ? "Food Tray" : "Buffet")}</div>
+                    <div className="pkg-name">{pkg.name}</div>
+                    <div className="pkg-subtitle">{pkg.subtitle}</div>
+                    <div className="pkg-price-row">
+                      {hasFixedPrice ? (
+                        <>
+                          <span className="pkg-price">₱{pkg.price.toLocaleString()}</span>
+                          <span className="pkg-unit"> / {pkg.paxRange || `${pkg.minPax}-${pkg.maxPax || pkg.minPax} PAX`}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="pkg-price">₱{pkg.pricePerPax}</span>
+                          <span className="pkg-unit">/ pax (min {pkg.minPax || 10} pax)</span>
+                        </>
+                      )}
+                    </div>
+                    <ul className="pkg-inclusions">
+                      {(pkg.inclusions || []).slice(0, 4).map((inc, i) => (
+                        <li key={i}>
+                          <Check size={14} />
+                          <span>{inc}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Pax Slider & Counter */}
           <div className="pax-slider-card">
@@ -1292,7 +2327,9 @@ export default function PricingCalculator({
                   Number of Guaranteed Guests (Pax)
                 </div>
                 <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                  Minimum {currentPkg.minPax} pax required for {currentPkg.name}
+                  {currentPkg.paxRange
+                    ? `Serving Size: ${currentPkg.paxRange} (Minimum ${currentPkg.minPax || 10} pax)`
+                    : `Minimum ${currentPkg.minPax || 10} pax required for ${currentPkg.name}`}
                 </div>
               </div>
 
@@ -1300,8 +2337,8 @@ export default function PricingCalculator({
                 <button
                   type="button"
                   className="pax-btn"
-                  onClick={() => setPax(prev => Math.max(currentPkg.minPax, prev - 10))}
-                  disabled={pax <= currentPkg.minPax}
+                  onClick={() => setPax(prev => Math.max(currentPkg.minPax || 10, prev - (isFoodTray ? 5 : 10)))}
+                  disabled={pax <= (currentPkg.minPax || 10)}
                 >
                   <Minus size={16} />
                 </button>
@@ -1309,14 +2346,14 @@ export default function PricingCalculator({
                   type="number"
                   className="pax-number-input"
                   value={pax}
-                  min={currentPkg.minPax}
+                  min={currentPkg.minPax || 10}
                   max={1000}
-                  onChange={(e) => setPax(Math.max(currentPkg.minPax, Number(e.target.value) || currentPkg.minPax))}
+                  onChange={(e) => setPax(Math.max(currentPkg.minPax || 10, Number(e.target.value) || (currentPkg.minPax || 10)))}
                 />
                 <button
                   type="button"
                   className="pax-btn"
-                  onClick={() => setPax(prev => prev + 10)}
+                  onClick={() => setPax(prev => prev + (isFoodTray ? 5 : 10))}
                 >
                   <Plus size={16} />
                 </button>
@@ -1342,909 +2379,1824 @@ export default function PricingCalculator({
           </div>
         </div>
 
-        {/* Package Bargain & Custom Swap Deals Card */}
-        <div className="card-section" id="section-swap-deals" style={{
-          background: swapDeal !== "none" ? "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)" : "#ffffff",
-          border: swapDeal !== "none" ? "2px solid #f59e0b" : "1px solid var(--border-subtle)",
-          borderRadius: "12px",
-          padding: "1.25rem",
-          marginBottom: "1.25rem",
-          transition: "all 0.25s ease"
-        }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.75rem", marginBottom: "0.85rem" }}>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <span style={{ fontSize: "1.35rem" }}>🔄</span>
-                <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 800, color: "var(--text-main)" }}>
-                  Package Bargain & Inclusion Swap Deals
-                </h3>
-                {swapDeal !== "none" && (
-                  <span style={{
-                    background: "#d97706",
-                    color: "#ffffff",
-                    fontSize: "0.7rem",
-                    fontWeight: 800,
-                    textTransform: "uppercase",
-                    padding: "2px 8px",
-                    borderRadius: "12px",
-                    letterSpacing: "0.04em"
-                  }}>
-                    Active Swap
+        {/* Step 3: Menu Viand Selection / Conference 4-Meal Allotment */}
+        {isConference ? (
+          <div className="card-section" id="section-conference-meals">
+            <div className="section-header">
+              <div className="section-title">
+                <div className="step-number">3</div>
+                <span>Government Conference 4-Meal Daily Menu Allotment</span>
+              </div>
+              <span style={{ fontSize: "0.75rem", color: "#2563eb", fontWeight: 700 }}>
+                4 Meal Slots / Day (₱1,290 / Pax Daily)
+              </span>
+            </div>
+
+            {/* Meal 1: AM Snacks */}
+            <div id="section-conf-am-snack" style={{
+              background: "#ffffff",
+              border: "1.5px solid #bfdbfe",
+              borderRadius: "12px",
+              padding: "1.25rem",
+              marginBottom: "1.25rem"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.85rem", borderBottom: "1px solid #e0f2fe", paddingBottom: "0.5rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ fontSize: "1.3rem" }}>🥪</span>
+                  <h4 style={{ margin: 0, fontSize: "1rem", fontWeight: 800, color: "#1e40af" }}>
+                    Meal 1: AM Snacks (09:30 AM Serving)
+                  </h4>
+                  <span style={{ fontSize: "0.72rem", background: "#dbeafe", color: "#1d4ed8", padding: "2px 8px", borderRadius: "10px", fontWeight: 700 }}>
+                    ₱120 / pax Allotted
                   </span>
-                )}
-              </div>
-              <p style={{ margin: "4px 0 0 0", fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                Want to customize inclusions? Authorized swap rules allow trading starch, beverages, and sweets for more hearty viands or pasta:
-              </p>
-            </div>
-          </div>
-
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-            gap: "0.75rem"
-          }}>
-            {/* Option 1: Standard Inclusions */}
-            <div
-              onClick={() => setSwapDeal("none")}
-              style={{
-                cursor: "pointer",
-                padding: "0.85rem 1rem",
-                borderRadius: "10px",
-                border: swapDeal === "none" ? "2px solid var(--gold-500)" : "1px solid #e2e8f0",
-                background: swapDeal === "none" ? "var(--gold-50, #fefce8)" : "#ffffff",
-                transition: "all 0.2s ease"
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
-                <span style={{ fontWeight: 800, fontSize: "0.88rem", color: "#0f172a" }}>
-                  Standard Inclusions
-                </span>
-                {swapDeal === "none" && <Check size={18} color="var(--gold-500)" />}
-              </div>
-              <div style={{ fontSize: "0.76rem", color: "#64748b", lineHeight: 1.35 }}>
-                Standard package setup: {baseCourseAllowances.mainDishesCount} Main Viands, {baseCourseAllowances.regSidesCount} Side(s), Desserts, Steamed Rice & Bottomless Drinks.
-              </div>
-            </div>
-
-            {/* Option 2: No Rice + No Drinks + No Dessert -> +1 Extra Main */}
-            <div
-              onClick={() => setSwapDeal("extra_main")}
-              style={{
-                cursor: "pointer",
-                padding: "0.85rem 1rem",
-                borderRadius: "10px",
-                border: swapDeal === "extra_main" ? "2px solid #b45309" : "1px solid #fed7aa",
-                background: swapDeal === "extra_main" ? "#fff7ed" : "#fffaf5",
-                transition: "all 0.2s ease"
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
-                <span style={{ fontWeight: 800, fontSize: "0.88rem", color: "#9a3412", display: "flex", alignItems: "center", gap: "4px" }}>
-                  <span>🥩</span>
-                  <span>+1 Extra Main Dish</span>
-                </span>
-                {swapDeal === "extra_main" ? (
-                  <Check size={18} color="#b45309" />
-                ) : (
-                  <span style={{ fontSize: "0.68rem", fontWeight: 700, color: "#c2410c", background: "#ffedd5", padding: "1px 6px", borderRadius: "8px" }}>
-                    Bargain Deal
-                  </span>
-                )}
-              </div>
-              <div style={{ fontSize: "0.76rem", color: "#7c2d12", lineHeight: 1.35 }}>
-                <strong>Waive:</strong> No Rice + No Drinks + No Dessert<br />
-                <strong>Equivalent:</strong> <strong>+{baseCourseAllowances.mainDishesCount + 1} Total Main Viands</strong> (+1 viand from Beef, Pork, Chicken, or Seafood).
-              </div>
-            </div>
-
-            {/* Option 3: No Rice + No Softdrinks -> +1 Extra Side Dish */}
-            <div
-              onClick={() => setSwapDeal("extra_side")}
-              style={{
-                cursor: "pointer",
-                padding: "0.85rem 1rem",
-                borderRadius: "10px",
-                border: swapDeal === "extra_side" ? "2px solid #15803d" : "1px solid #bbf7d0",
-                background: swapDeal === "extra_side" ? "#f0fdf4" : "#f8fdf9",
-                transition: "all 0.2s ease"
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
-                <span style={{ fontWeight: 800, fontSize: "0.88rem", color: "#166534", display: "flex", alignItems: "center", gap: "4px" }}>
-                  <span>🥗</span>
-                  <span>+1 Extra Side Dish</span>
-                </span>
-                {swapDeal === "extra_side" ? (
-                  <Check size={18} color="#15803d" />
-                ) : (
-                  <span style={{ fontSize: "0.68rem", fontWeight: 700, color: "#15803d", background: "#dcfce7", padding: "1px 6px", borderRadius: "8px" }}>
-                    Bargain Deal
-                  </span>
-                )}
-              </div>
-              <div style={{ fontSize: "0.76rem", color: "#14532d", lineHeight: 1.35 }}>
-                <strong>Waive:</strong> No Rice + No Softdrinks<br />
-                <strong>Equivalent:</strong> <strong>+{baseCourseAllowances.regSidesCount + 1} Total Side Dishes</strong> (+1 Pasta or Veg dish). Desserts remain included!
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Step 3: Authentic Filipino Viands Picker */}
-        <div className="card-section" id="section-main-dishes">
-          <div className="section-header">
-            <div className="section-title">
-              <div className="step-number">3</div>
-              <span>Filipino Viand & Course Selection</span>
-            </div>
-            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-              {maxMainDishes} Main Dishes Included
-            </span>
-          </div>
-
-          {/* MAIN DISHES ALLOWANCE TRACKER BANNER */}
-          <div style={{
-            background: selectedMainDishes.length === maxMainDishes 
-              ? "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)" 
-              : "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)",
-            border: selectedMainDishes.length === maxMainDishes ? "1px solid #86efac" : "1px solid #fde68a",
-            borderRadius: "12px",
-            padding: "1rem 1.25rem",
-            marginBottom: "1.5rem"
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  <span style={{ fontSize: "1.25rem" }}>🍽️</span>
-                  <span style={{ fontWeight: 800, fontSize: "1.05rem", color: selectedMainDishes.length === maxMainDishes ? "#166534" : "#92400e" }}>
-                    Main Dishes Allowance: {selectedMainDishes.length} of {maxMainDishes} Selected
-                  </span>
-                  {selectedMainDishes.length === maxMainDishes && (
-                    <span style={{ background: "#16a34a", color: "#fff", fontSize: "0.72rem", fontWeight: 700, padding: "2px 8px", borderRadius: "12px" }}>
-                      Complete ✓
-                    </span>
-                  )}
                 </div>
-                <p style={{ margin: "4px 0 0 0", fontSize: "0.8rem", color: selectedMainDishes.length === maxMainDishes ? "#15803d" : "#b45309" }}>
-                  {selectedMainDishes.length === maxMainDishes
-                    ? `You've selected all ${maxMainDishes} main dishes for ${currentPkg.name}. You can click any selected dish to remove or swap it.`
-                    : `Pick ${maxMainDishes - selectedMainDishes.length} more main dish(es). You can choose multiple dishes from the same course (e.g. 2 Beef, 2 Chicken, etc.)!`}
-                </p>
+                <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Sandwich + Hot / Cold Beverage</span>
               </div>
-              <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-secondary)" }}>
-                Package: <span style={{ color: "var(--gold-600)" }}>{currentPkg.name}</span>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "1rem" }}>
+                <div>
+                  <label className="form-label" style={{ fontSize: "0.8rem", fontWeight: 700, color: "#1e3a8a" }}>
+                    Choice of Snack Sandwich *
+                  </label>
+                  <select
+                    className="form-select"
+                    value={amSnackDish}
+                    onChange={(e) => setAmSnackDish(e.target.value)}
+                  >
+                    {(CONFERENCE_SNACK_OPTIONS?.sandwiches || []).map((s, idx) => (
+                      <option key={idx} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: "0.8rem", fontWeight: 700, color: "#1e3a8a" }}>
+                    Choice of AM Drink / Refreshment *
+                  </label>
+                  <select
+                    className="form-select"
+                    value={amSnackDrink}
+                    onChange={(e) => setAmSnackDrink(e.target.value)}
+                  >
+                    {(CONFERENCE_SNACK_OPTIONS?.drinks || []).map((d, idx) => (
+                      <option key={idx} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
 
-            {/* Chips of currently selected main dishes with quick remove 'X' */}
-            {selectedMainDishes.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginTop: "0.85rem", paddingTop: "0.75rem", borderTop: "1px dashed rgba(0,0,0,0.12)" }}>
-                {selectedMainDishes.map((dishName, idx) => {
-                  const dishObj = getDishObject("", dishName);
-                  const isSpecial = dishObj && (dishObj.tier === "special" || dishObj.premium);
+            {/* Meal 2: Lunch Buffet (Package 1: 3 Mains, 1 Side, Rice, Dessert, Beverage) */}
+            <div id="section-conf-lunch" style={{
+              background: "#ffffff",
+              border: "1.5px solid #bbf7d0",
+              borderRadius: "12px",
+              padding: "1.25rem",
+              marginBottom: "1.25rem"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.85rem", borderBottom: "1px solid #dcfce7", paddingBottom: "0.5rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ fontSize: "1.3rem" }}>🍱</span>
+                  <h4 style={{ margin: 0, fontSize: "1rem", fontWeight: 800, color: "#166534" }}>
+                    Meal 2: Lunch Buffet - Package 1 (12:00 PM Serving)
+                  </h4>
+                  <span style={{ fontSize: "0.72rem", background: "#dcfce7", color: "#15803d", padding: "2px 8px", borderRadius: "10px", fontWeight: 700 }}>
+                    ₱480 / pax Allotted
+                  </span>
+                </div>
+                <span style={{ fontSize: "0.75rem", color: "#15803d", fontWeight: 700 }}>
+                  3 Regular Mains + 1 Side + Steamed Rice + Dessert + Beverage
+                </span>
+              </div>
+
+              {/* Lunch Mains Selector */}
+              <div style={{ marginBottom: "1rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                  <label className="form-label" style={{ margin: 0, fontSize: "0.82rem", fontWeight: 700, color: "#166534" }}>
+                    Select 3 Lunch Main Viands ({selectedMainDishes.slice(0, 3).length}/3 selected):
+                  </label>
+                  <span style={{ fontSize: "0.74rem", fontWeight: 700, color: selectedMainDishes.slice(0, 3).length === 3 ? "#16a34a" : "#d97706" }}>
+                    {selectedMainDishes.slice(0, 3).length === 3 ? "Complete ✓" : `Pick ${3 - selectedMainDishes.slice(0, 3).length} more`}
+                  </span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "0.5rem" }}>
+                  {(dishesMenu.beef || []).concat(dishesMenu.pork || [], dishesMenu.chicken || [], dishesMenu.fish || [])
+                    .filter(d => d.tier !== "special" && !d.premium)
+                    .slice(0, 16)
+                    .map(dish => {
+                      const isSel = selectedMainDishes.slice(0, 3).includes(dish.name);
+                      return (
+                        <div
+                          key={`lunch-${dish.name}`}
+                          onClick={() => {
+                            if (isSel) {
+                              setSelectedMainDishes(prev => prev.filter(n => n !== dish.name));
+                            } else if (selectedMainDishes.length < 3) {
+                              setSelectedMainDishes(prev => [...prev, dish.name]);
+                            }
+                          }}
+                          style={{
+                            border: isSel ? "2px solid #16a34a" : "1px solid #e2e8f0",
+                            background: isSel ? "#f0fdf4" : "#ffffff",
+                            padding: "0.6rem 0.75rem",
+                            borderRadius: "8px",
+                            cursor: "pointer",
+                            fontSize: "0.78rem",
+                            fontWeight: isSel ? 700 : 500,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between"
+                          }}
+                        >
+                          <span>{dish.name}</span>
+                          {isSel && <Check size={14} color="#16a34a" />}
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+
+              {/* Lunch Side, Rice, Drink, Dessert */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "0.75rem" }}>
+                <div>
+                  <label className="form-label" style={{ fontSize: "0.78rem", fontWeight: 700 }}>Lunch Side Dish *</label>
+                  <select
+                    className="form-select"
+                    value={selectedSides[0] || ""}
+                    onChange={(e) => setSelectedSides([e.target.value])}
+                  >
+                    {(dishesMenu.noodlesOrVeg || []).filter(d => d.tier !== "special" && !d.premium).map((d, i) => (
+                      <option key={i} value={d.name}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: "0.78rem", fontWeight: 700 }}>Lunch Rice/Starch *</label>
+                  <select
+                    className="form-select"
+                    value={riceOrSoup}
+                    onChange={(e) => setRiceOrSoup(e.target.value)}
+                  >
+                    <option value="Plain Steamed Rice">Plain Steamed Rice</option>
+                    <option value="Garlic Fragrant Rice">Garlic Fragrant Rice</option>
+                    <option value="Hot Cream of Corn Soup">Hot Cream of Corn Soup</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: "0.78rem", fontWeight: 700 }}>Lunch Beverage *</label>
+                  <select
+                    className="form-select"
+                    value={beverage}
+                    onChange={(e) => setBeverage(e.target.value)}
+                  >
+                    <option value="Bottomless Signature Red Iced Tea">Bottomless Signature Red Iced Tea</option>
+                    <option value="Fresh Calamansi Citrus Cooler">Fresh Calamansi Citrus Cooler</option>
+                    <option value="Soda (Coke)">Soda (Coke)</option>
+                    <option value="Blue Lemonade Refresher">Blue Lemonade Refresher</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: "0.78rem", fontWeight: 700 }}>Lunch Dessert *</label>
+                  <select
+                    className="form-select"
+                    value={selectedDessertsList[0] || ""}
+                    onChange={(e) => setSelectedDessertsList([e.target.value])}
+                  >
+                    {(dishesMenu.dessert || []).filter(d => d.tier !== "special" && !d.premium).map((d, i) => (
+                      <option key={i} value={d.name}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Meal 3: PM Snacks */}
+            <div id="section-conf-pm-snack" style={{
+              background: "#ffffff",
+              border: "1.5px solid #fed7aa",
+              borderRadius: "12px",
+              padding: "1.25rem",
+              marginBottom: "1.25rem"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.85rem", borderBottom: "1px solid #ffedd5", paddingBottom: "0.5rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ fontSize: "1.3rem" }}>🍝</span>
+                  <h4 style={{ margin: 0, fontSize: "1rem", fontWeight: 800, color: "#9a3412" }}>
+                    Meal 3: PM Snacks (03:00 PM Serving)
+                  </h4>
+                  <span style={{ fontSize: "0.72rem", background: "#ffedd5", color: "#c2410c", padding: "2px 8px", borderRadius: "10px", fontWeight: 700 }}>
+                    ₱140 / pax Allotted
+                  </span>
+                </div>
+                <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Hot Pasta / Specialty Noodles + Refreshment</span>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "1rem" }}>
+                <div>
+                  <label className="form-label" style={{ fontSize: "0.8rem", fontWeight: 700, color: "#7c2d12" }}>
+                    Choice of Snack Pasta / Noodles *
+                  </label>
+                  <select
+                    className="form-select"
+                    value={pmSnackDish}
+                    onChange={(e) => setPmSnackDish(e.target.value)}
+                  >
+                    {(CONFERENCE_SNACK_OPTIONS?.pastas || []).map((p, idx) => (
+                      <option key={idx} value={p}>{p}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: "0.8rem", fontWeight: 700, color: "#7c2d12" }}>
+                    Choice of PM Drink *
+                  </label>
+                  <select
+                    className="form-select"
+                    value={pmSnackDrink}
+                    onChange={(e) => setPmSnackDrink(e.target.value)}
+                  >
+                    {(CONFERENCE_SNACK_OPTIONS?.drinks || []).map((d, idx) => (
+                      <option key={idx} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Meal 4: Dinner Buffet (Package 2: 4 Mains, 1 Side, Rice, Dessert, Beverage) */}
+            <div id="section-conf-dinner" style={{
+              background: "#ffffff",
+              border: "1.5px solid #ddd6fe",
+              borderRadius: "12px",
+              padding: "1.25rem",
+              marginBottom: "1.25rem"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.85rem", borderBottom: "1px solid #ede9fe", paddingBottom: "0.5rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ fontSize: "1.3rem" }}>🍽️</span>
+                  <h4 style={{ margin: 0, fontSize: "1rem", fontWeight: 800, color: "#5b21b6" }}>
+                    Meal 4: Dinner Buffet - Package 2 (06:30 PM Serving)
+                  </h4>
+                  <span style={{ fontSize: "0.72rem", background: "#ede9fe", color: "#6d28d9", padding: "2px 8px", borderRadius: "10px", fontWeight: 700 }}>
+                    ₱550 / pax Allotted
+                  </span>
+                </div>
+                <span style={{ fontSize: "0.75rem", color: "#5b21b6", fontWeight: 700 }}>
+                  4 Regular Mains + 1 Side + Steamed Rice + Dessert + Beverage
+                </span>
+              </div>
+
+              {/* Dinner Mains Selector */}
+              <div style={{ marginBottom: "1rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                  <label className="form-label" style={{ margin: 0, fontSize: "0.82rem", fontWeight: 700, color: "#5b21b6" }}>
+                    Select 4 Dinner Main Viands ({dinnerMainDishes.length}/4 selected):
+                  </label>
+                  <span style={{ fontSize: "0.74rem", fontWeight: 700, color: dinnerMainDishes.length === 4 ? "#7c3aed" : "#d97706" }}>
+                    {dinnerMainDishes.length === 4 ? "Complete ✓" : `Pick ${4 - dinnerMainDishes.length} more`}
+                  </span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "0.5rem" }}>
+                  {(dishesMenu.beef || []).concat(dishesMenu.pork || [], dishesMenu.chicken || [], dishesMenu.fish || [])
+                    .filter(d => d.tier !== "special" && !d.premium)
+                    .slice(0, 16)
+                    .map(dish => {
+                      const isSel = dinnerMainDishes.includes(dish.name);
+                      return (
+                        <div
+                          key={`dinner-${dish.name}`}
+                          onClick={() => {
+                            if (isSel) {
+                              setDinnerMainDishes(prev => prev.filter(n => n !== dish.name));
+                            } else if (dinnerMainDishes.length < 4) {
+                              setDinnerMainDishes(prev => [...prev, dish.name]);
+                            }
+                          }}
+                          style={{
+                            border: isSel ? "2px solid #7c3aed" : "1px solid #e2e8f0",
+                            background: isSel ? "#faf5ff" : "#ffffff",
+                            padding: "0.6rem 0.75rem",
+                            borderRadius: "8px",
+                            cursor: "pointer",
+                            fontSize: "0.78rem",
+                            fontWeight: isSel ? 700 : 500,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between"
+                          }}
+                        >
+                          <span>{dish.name}</span>
+                          {isSel && <Check size={14} color="#7c3aed" />}
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+
+              {/* Dinner Side, Rice, Drink, Dessert */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "0.75rem" }}>
+                <div>
+                  <label className="form-label" style={{ fontSize: "0.78rem", fontWeight: 700 }}>Dinner Side Dish *</label>
+                  <select
+                    className="form-select"
+                    value={dinnerSide}
+                    onChange={(e) => setDinnerSide(e.target.value)}
+                  >
+                    {(dishesMenu.noodlesOrVeg || []).filter(d => d.tier !== "special" && !d.premium).map((d, i) => (
+                      <option key={`d-side-${i}`} value={d.name}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: "0.78rem", fontWeight: 700 }}>Dinner Rice *</label>
+                  <select
+                    className="form-select"
+                    value={dinnerRice}
+                    onChange={(e) => setDinnerRice(e.target.value)}
+                  >
+                    <option value="Plain Steamed Rice">Plain Steamed Rice</option>
+                    <option value="Garlic Fried Rice">Garlic Fried Rice</option>
+                    <option value="Yang Chow Fried Rice">Yang Chow Fried Rice</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: "0.78rem", fontWeight: 700 }}>Dinner Beverage *</label>
+                  <select
+                    className="form-select"
+                    value={dinnerDrink}
+                    onChange={(e) => setDinnerDrink(e.target.value)}
+                  >
+                    <option value="Bottomless Signature Red Iced Tea">Bottomless Signature Red Iced Tea</option>
+                    <option value="Fresh Calamansi Citrus Cooler">Fresh Calamansi Citrus Cooler</option>
+                    <option value="Soda (Coke)">Soda (Coke)</option>
+                    <option value="Blue Lemonade Refresher">Blue Lemonade Refresher</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: "0.78rem", fontWeight: 700 }}>Dinner Dessert *</label>
+                  <select
+                    className="form-select"
+                    value={dinnerDessert}
+                    onChange={(e) => setDinnerDessert(e.target.value)}
+                  >
+                    {(dishesMenu.dessert || []).filter(d => d.tier !== "special" && !d.premium).map((d, i) => (
+                      <option key={`d-des-${i}`} value={d.name}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : isPicaPica ? (
+          <div className="card-section" id="section-pica-curation">
+            <div className="section-header">
+              <div className="section-title">
+                <div className="step-number">3</div>
+                <span>Customize Pica Pica Cocktail Station Food Choices</span>
+              </div>
+              <span style={{ fontSize: "0.78rem", color: "#065f46", fontWeight: 700, background: "#d1fae5", padding: "3px 10px", borderRadius: "12px", border: "1px solid #a7f3d0" }}>
+                {currentPkg.name} • ₱{currentPkg.pricePerPax}/pax (Min 50 Pax)
+              </span>
+            </div>
+
+            {/* Allowance Status Bar */}
+            <div style={{
+              background: "linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)",
+              border: "1.5px solid #a7f3d0",
+              borderRadius: "12px",
+              padding: "1rem 1.25rem",
+              marginBottom: "1.5rem"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "#065f46" }}>
+                    🍢 Pica Pica Course Allowances ({currentPkg.name})
+                  </h4>
+                  <p style={{ margin: "2px 0 0 0", fontSize: "0.76rem", color: "#047857" }}>
+                    Select your artisan cocktail bites below. Special items add a +₱45/pax chef tier upgrade.
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                  <span style={{
+                    fontSize: "0.74rem",
+                    fontWeight: 700,
+                    padding: "3px 8px",
+                    borderRadius: "8px",
+                    background: selectedSliders.length === (picaAllowances.sliders || 3) ? "#059669" : "#ffffff",
+                    color: selectedSliders.length === (picaAllowances.sliders || 3) ? "#ffffff" : "#065f46",
+                    border: "1px solid #059669"
+                  }}>
+                    🍔 Sliders: {selectedSliders.length}/{picaAllowances.sliders || 3}
+                  </span>
+                  <span style={{
+                    fontSize: "0.74rem",
+                    fontWeight: 700,
+                    padding: "3px 8px",
+                    borderRadius: "8px",
+                    background: selectedCanapes.length === (picaAllowances.canapes || 5) ? "#059669" : "#ffffff",
+                    color: selectedCanapes.length === (picaAllowances.canapes || 5) ? "#ffffff" : "#065f46",
+                    border: "1px solid #059669"
+                  }}>
+                    🥪 Canapés: {selectedCanapes.length}/{picaAllowances.canapes || 5}
+                  </span>
+                  <span style={{
+                    fontSize: "0.74rem",
+                    fontWeight: 700,
+                    padding: "3px 8px",
+                    borderRadius: "8px",
+                    background: selectedFingerFoods.length === (picaAllowances.fingerFood || 3) ? "#059669" : "#ffffff",
+                    color: selectedFingerFoods.length === (picaAllowances.fingerFood || 3) ? "#ffffff" : "#065f46",
+                    border: "1px solid #059669"
+                  }}>
+                    🍗 Finger Food: {selectedFingerFoods.length}/{picaAllowances.fingerFood || 3}
+                  </span>
+                  <span style={{
+                    fontSize: "0.74rem",
+                    fontWeight: 700,
+                    padding: "3px 8px",
+                    borderRadius: "8px",
+                    background: selectedMiniDesserts.length === (picaAllowances.miniDesserts || 2) ? "#059669" : "#ffffff",
+                    color: selectedMiniDesserts.length === (picaAllowances.miniDesserts || 2) ? "#ffffff" : "#065f46",
+                    border: "1px solid #059669"
+                  }}>
+                    🍮 Desserts: {selectedMiniDesserts.length}/{picaAllowances.miniDesserts || 2}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 1. SLIDERS (Regular & Special) */}
+            <div style={{ marginBottom: "1.75rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "#1e293b", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span>🍔 Sliders Selection</span>
+                    <span style={{ fontSize: "0.75rem", color: "#047857", background: "#d1fae5", padding: "2px 8px", borderRadius: "10px", border: "1px solid #a7f3d0" }}>
+                      Choose {picaAllowances.sliders || 3} Sliders ({selectedSliders.length} selected)
+                    </span>
+                  </h4>
+                  <p style={{ margin: "3px 0 0 0", fontSize: "0.76rem", color: "var(--text-muted)" }}>
+                    Includes 10 Regular choices (₱0 upgrade) and 8 Special Chef choices (+₱45/pax upgrade).
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: "0.55rem" }}>
+                {(dishesMenu.sliders || []).map(slider => {
+                  const isSel = selectedSliders.includes(slider.name);
+                  const isSpecial = slider.tier === "special" || slider.premium;
                   return (
                     <div
-                      key={dishName + idx}
+                      key={slider.id || slider.name}
+                      onClick={() => handleSliderToggle(slider.name)}
                       style={{
-                        display: "inline-flex",
+                        padding: "0.65rem 0.8rem",
+                        borderRadius: "8px",
+                        border: isSel ? "2px solid #059669" : isSpecial ? "1px dashed #f59e0b" : "1px solid var(--border-subtle)",
+                        background: isSel ? "#ecfdf5" : isSpecial ? "#fffdf5" : "#ffffff",
+                        cursor: "pointer",
+                        display: "flex",
                         alignItems: "center",
-                        gap: "6px",
-                        background: isSpecial ? "#fef3c7" : "#ffffff",
-                        border: isSpecial ? "1px solid #f59e0b" : "1px solid #cbd5e1",
-                        color: isSpecial ? "#92400e" : "#1e293b",
-                        padding: "4px 10px",
-                        borderRadius: "20px",
-                        fontSize: "0.78rem",
-                        fontWeight: 600,
-                        boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+                        justifyContent: "space-between",
+                        transition: "all 0.15s ease"
                       }}
                     >
-                      {isSpecial && <span>⭐</span>}
-                      <span>{dishName}</span>
-                      {isSpecial && <span style={{ fontSize: "0.7rem", color: "#b45309" }}>(+₱{getDishUpgradePrice(dishObj)}/pax)</span>}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveMainDish(dishName)}
-                        title="Remove dish"
-                        style={{
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          padding: "2px",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          color: "#ef4444",
-                          marginLeft: "2px"
-                        }}
-                      >
-                        <X size={14} />
-                      </button>
+                      <div>
+                        <div style={{ fontSize: "0.82rem", fontWeight: isSel ? 800 : 600, color: isSel ? "#065f46" : "var(--text-primary)" }}>
+                          {slider.name}
+                        </div>
+                        {isSpecial && (
+                          <span style={{ fontSize: "0.68rem", color: "#b45309", fontWeight: 700 }}>
+                            ⭐ Special (+₱45/pax)
+                          </span>
+                        )}
+                      </div>
+                      {isSel && <Check size={16} color="#059669" />}
                     </div>
                   );
                 })}
               </div>
-            )}
+            </div>
 
-            {dishLimitNotice && (
-              <div style={{ marginTop: "0.65rem", background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b", padding: "6px 12px", borderRadius: "8px", fontSize: "0.78rem", fontWeight: 600 }}>
-                ⚠️ {dishLimitNotice}
+            {/* 2. CANAPÉS (Regular & Special) */}
+            <div style={{ marginBottom: "1.75rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "#1e293b", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span>🥪 Canapés Selection</span>
+                    <span style={{ fontSize: "0.75rem", color: "#047857", background: "#d1fae5", padding: "2px 8px", borderRadius: "10px", border: "1px solid #a7f3d0" }}>
+                      Choose {picaAllowances.canapes || 5} Canapés ({selectedCanapes.length} selected)
+                    </span>
+                  </h4>
+                  <p style={{ margin: "3px 0 0 0", fontSize: "0.76rem", color: "var(--text-muted)" }}>
+                    Includes 12 Regular choices (₱0 upgrade) and 10 Special Chef choices (+₱45/pax upgrade).
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: "0.55rem" }}>
+                {(dishesMenu.canapes || []).map(canape => {
+                  const isSel = selectedCanapes.includes(canape.name);
+                  const isSpecial = canape.tier === "special" || canape.premium;
+                  return (
+                    <div
+                      key={canape.id || canape.name}
+                      onClick={() => handleCanapeToggle(canape.name)}
+                      style={{
+                        padding: "0.65rem 0.8rem",
+                        borderRadius: "8px",
+                        border: isSel ? "2px solid #059669" : isSpecial ? "1px dashed #f59e0b" : "1px solid var(--border-subtle)",
+                        background: isSel ? "#ecfdf5" : isSpecial ? "#fffdf5" : "#ffffff",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        transition: "all 0.15s ease"
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: "0.82rem", fontWeight: isSel ? 800 : 600, color: isSel ? "#065f46" : "var(--text-primary)" }}>
+                          {canape.name}
+                        </div>
+                        {isSpecial && (
+                          <span style={{ fontSize: "0.68rem", color: "#b45309", fontWeight: 700 }}>
+                            ⭐ Special (+₱45/pax)
+                          </span>
+                        )}
+                      </div>
+                      {isSel && <Check size={16} color="#059669" />}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 3. FINGER FOOD */}
+            <div style={{ marginBottom: "1.75rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "#1e293b", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span>🍗 Finger Food Selection</span>
+                    <span style={{ fontSize: "0.75rem", color: "#047857", background: "#d1fae5", padding: "2px 8px", borderRadius: "10px", border: "1px solid #a7f3d0" }}>
+                      Choose {picaAllowances.fingerFood || 3} Items ({selectedFingerFoods.length} selected)
+                    </span>
+                  </h4>
+                  <p style={{ margin: "3px 0 0 0", fontSize: "0.76rem", color: "var(--text-muted)" }}>
+                    Savory deep-fried and grilled cocktail delights.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: "0.55rem" }}>
+                {(dishesMenu.fingerFood || []).map(item => {
+                  const isSel = selectedFingerFoods.includes(item.name);
+                  return (
+                    <div
+                      key={item.id || item.name}
+                      onClick={() => handleFingerFoodToggle(item.name)}
+                      style={{
+                        padding: "0.65rem 0.8rem",
+                        borderRadius: "8px",
+                        border: isSel ? "2px solid #059669" : "1px solid var(--border-subtle)",
+                        background: isSel ? "#ecfdf5" : "#ffffff",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        transition: "all 0.15s ease"
+                      }}
+                    >
+                      <span style={{ fontSize: "0.82rem", fontWeight: isSel ? 800 : 600, color: isSel ? "#065f46" : "var(--text-primary)" }}>
+                        {item.name}
+                      </span>
+                      {isSel && <Check size={16} color="#059669" />}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 4. MINI DESSERT CUPS */}
+            <div style={{ marginBottom: "1.75rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "#1e293b", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span>🍮 Mini Dessert Cups</span>
+                    <span style={{ fontSize: "0.75rem", color: "#047857", background: "#d1fae5", padding: "2px 8px", borderRadius: "10px", border: "1px solid #a7f3d0" }}>
+                      Choose {picaAllowances.miniDesserts || 2} Dessert Cups ({selectedMiniDesserts.length} selected)
+                    </span>
+                  </h4>
+                  <p style={{ margin: "3px 0 0 0", fontSize: "0.76rem", color: "var(--text-muted)" }}>
+                    Individual chilled shooters, parfaits, and cheesecakes.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: "0.55rem" }}>
+                {(dishesMenu.miniDesserts || []).map(item => {
+                  const isSel = selectedMiniDesserts.includes(item.name);
+                  return (
+                    <div
+                      key={item.id || item.name}
+                      onClick={() => handleMiniDessertToggle(item.name)}
+                      style={{
+                        padding: "0.65rem 0.8rem",
+                        borderRadius: "8px",
+                        border: isSel ? "2px solid #059669" : "1px solid var(--border-subtle)",
+                        background: isSel ? "#ecfdf5" : "#ffffff",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        transition: "all 0.15s ease"
+                      }}
+                    >
+                      <span style={{ fontSize: "0.82rem", fontWeight: isSel ? 800 : 600, color: isSel ? "#065f46" : "var(--text-primary)" }}>
+                        {item.name}
+                      </span>
+                      {isSel && <Check size={16} color="#059669" />}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 5. Special Inclusions for Option 3 Grand Tier */}
+            {picaAllowances.hasKakanin && (
+              <div style={{ background: "#fefce8", border: "1.5px solid #fef08a", borderRadius: "10px", padding: "0.85rem 1rem", marginBottom: "1.25rem", display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "1.3rem" }}>🥥</span>
+                <div>
+                  <strong style={{ fontSize: "0.88rem", color: "#854d0e" }}>Included: Pinoy Kakanins Platter</strong>
+                  <div style={{ fontSize: "0.74rem", color: "#a16207" }}>Traditional Filipino native delicacies included in Option 3 Grand Tier setup.</div>
+                </div>
               </div>
             )}
-          </div>
 
-          {/* Beef Options */}
-          {renderViandCategory("beef", "Beef Course", "🥩")}
+            {picaAllowances.hasDiyStation && (
+              <div style={{ background: "#eff6ff", border: "1.5px solid #bfdbfe", borderRadius: "10px", padding: "1rem", marginBottom: "1.25rem" }}>
+                <label className="form-label" style={{ fontSize: "0.86rem", fontWeight: 800, color: "#1e40af", marginBottom: "0.5rem" }}>
+                  🎪 Choice of Interactive DIY Food Station (Option 3 Inclusions):
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                  <button
+                    type="button"
+                    onClick={() => setPicaDiyStation("DIY Nacho Station")}
+                    style={{
+                      padding: "0.75rem",
+                      borderRadius: "8px",
+                      border: picaDiyStation === "DIY Nacho Station" ? "2px solid #2563eb" : "1px solid #cbd5e1",
+                      background: picaDiyStation === "DIY Nacho Station" ? "#ffffff" : "transparent",
+                      color: picaDiyStation === "DIY Nacho Station" ? "#1e40af" : "#475569",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      textAlign: "left"
+                    }}
+                  >
+                    🧀 DIY Nacho Station
+                    <div style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 400 }}>Warm cheese fondue, salsa, ground beef & tortilla chips</div>
+                  </button>
 
-          {/* Pork Options */}
-          {renderViandCategory("pork", "Pork Course", "🍖")}
+                  <button
+                    type="button"
+                    onClick={() => setPicaDiyStation("DIY Mini Doughnut Station")}
+                    style={{
+                      padding: "0.75rem",
+                      borderRadius: "8px",
+                      border: picaDiyStation === "DIY Mini Doughnut Station" ? "2px solid #2563eb" : "1px solid #cbd5e1",
+                      background: picaDiyStation === "DIY Mini Doughnut Station" ? "#ffffff" : "transparent",
+                      color: picaDiyStation === "DIY Mini Doughnut Station" ? "#1e40af" : "#475569",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      textAlign: "left"
+                    }}
+                  >
+                    🍩 DIY Mini Doughnut Station
+                    <div style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 400 }}>Assorted glazes, chocolate drizzles & colorful sprinkles</div>
+                  </button>
+                </div>
+              </div>
+            )}
 
-          {/* Chicken Options */}
-          {renderViandCategory("chicken", "Chicken Course", "🍗")}
+            {/* 6. Choice of Beverage: Juice or Coffee */}
+            <div style={{ background: "#f8fafc", border: "1px solid var(--border-subtle)", borderRadius: "10px", padding: "1rem" }}>
+              <label className="form-label" style={{ fontSize: "0.85rem", fontWeight: 800, color: "var(--text-primary)", marginBottom: "0.4rem" }}>
+                🥤 Choice of Beverage (Included):
+              </label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                <button
+                  type="button"
+                  onClick={() => setPicaBeverage("Choice of Juice (House Red Iced Tea)")}
+                  style={{
+                    padding: "0.75rem",
+                    borderRadius: "8px",
+                    border: picaBeverage.includes("Juice") ? "2px solid #059669" : "1px solid var(--border-subtle)",
+                    background: picaBeverage.includes("Juice") ? "#ecfdf5" : "transparent",
+                    color: picaBeverage.includes("Juice") ? "#065f46" : "var(--text-secondary)",
+                    fontWeight: 700,
+                    cursor: "pointer"
+                  }}
+                >
+                  🍹 Choice of Juice (House Red Iced Tea)
+                </button>
 
-          {/* Seafood Options */}
-          {renderViandCategory("fish", "Seafood Course", "🐟")}
-        </div>
-
-        {/* Dedicated Section: Side Dish Selection with MENU BOXES */}
-        <div className="card-section" id="section-side-dishes" style={{ marginTop: "1.25rem" }}>
-          <div className="section-header">
-            <div className="section-title">
-              <span style={{ fontSize: "1.25rem" }}>🥗</span>
-              <span>Side Dish Selection (Pasta & Vegetables)</span>
+                <button
+                  type="button"
+                  onClick={() => setPicaBeverage("Freshly Brewed Hot Coffee")}
+                  style={{
+                    padding: "0.75rem",
+                    borderRadius: "8px",
+                    border: picaBeverage.includes("Coffee") ? "2px solid #059669" : "1px solid var(--border-subtle)",
+                    background: picaBeverage.includes("Coffee") ? "#ecfdf5" : "transparent",
+                    color: picaBeverage.includes("Coffee") ? "#065f46" : "var(--text-secondary)",
+                    fontWeight: 700,
+                    cursor: "pointer"
+                  }}
+                >
+                  ☕ Freshly Brewed Hot Coffee
+                </button>
+              </div>
             </div>
-            <span style={{ 
-              fontSize: "0.78rem", 
-              fontWeight: 700,
-              color: "#166534", 
-              background: "#dcfce7", 
-              padding: "3px 10px", 
-              borderRadius: "12px", 
-              border: "1px solid #86efac" 
-            }}>
-              Included: {courseAllowances.regSidesCount} Regular Side{courseAllowances.regSidesCount > 1 ? "s" : ""}{courseAllowances.specSidesCount > 0 ? ` + ${courseAllowances.specSidesCount} Special Side` : ""}
-            </span>
           </div>
+        ) : isGrazingTable ? (
+          <div className="card-section" id="section-grazing-curation">
+            <div className="section-header">
+              <div className="section-title">
+                <div className="step-number">3</div>
+                <span>Customize Artisan Grazing Table</span>
+              </div>
+              <span style={{ fontSize: "0.78rem", color: "#5b21b6", fontWeight: 700, background: "#ede9fe", padding: "3px 10px", borderRadius: "12px", border: "1px solid #c4b5fd" }}>
+                {currentPkg.name} • ₱{currentPkg.price?.toLocaleString()}
+              </span>
+            </div>
 
-          {/* ALLOWANCE TRACKER BANNER FOR SIDES */}
-          <div style={{
-            background: selectedSides.length === courseAllowances.regSidesCount 
-              ? "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)" 
-              : "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)",
-            border: selectedSides.length === courseAllowances.regSidesCount ? "1px solid #86efac" : "1px solid #fde68a",
-            borderRadius: "12px",
-            padding: "1rem 1.25rem",
-            marginBottom: "1.25rem"
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            {/* Luxury Charcuterie Spread Inclusions Card */}
+            <div style={{
+              background: "linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)",
+              border: "1.5px solid #d8b4fe",
+              borderRadius: "12px",
+              padding: "1.25rem",
+              marginBottom: "1.5rem"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "0.75rem" }}>
+                <span style={{ fontSize: "1.4rem" }}>🧀</span>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 800, color: "#5b21b6" }}>
+                    Standard Artisan Charcuterie Board Inclusions
+                  </h4>
+                  <div style={{ fontSize: "0.78rem", color: "#6d28d9" }}>
+                    Prepared fresh on-site with fine styling, eucalyptus foliage & slate risers
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "0.6rem", fontSize: "0.8rem", color: "#4c1d95" }}>
+                <div style={{ background: "#ffffff", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #e9d5ff" }}>
+                  🍖 <strong>5 Kilos of Italian Cured Meats</strong> (Prosciutto, Salami, Coppa Ham)
+                </div>
+                <div style={{ background: "#ffffff", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #e9d5ff" }}>
+                  🧀 <strong>5 Types of Imported Cheeses</strong> (Brie, Gouda, Cheddar, Emmental, Blue)
+                </div>
+                <div style={{ background: "#ffffff", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #e9d5ff" }}>
+                  🍇 <strong>5 Big Seasonal Fruit Platters</strong> (Grapes, Berries, Kiwi, Melons)
+                </div>
+                <div style={{ background: "#ffffff", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #e9d5ff" }}>
+                  🌭 <strong>Hungarian Sausage Platter</strong> with gourmet mustard dip
+                </div>
+                <div style={{ background: "#ffffff", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #e9d5ff" }}>
+                  🥖 <strong>Artisan Breadbasket with Jam and Bread</strong>
+                </div>
+                <div style={{ background: "#ffffff", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #e9d5ff" }}>
+                  🥨 <strong>Wafers, Saltin Crackers & Bretzels</strong>
+                </div>
+                <div style={{ background: "#ffffff", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #e9d5ff" }}>
+                  🥒 <strong>Vegetable Sticks with Creamy Dips</strong>
+                </div>
+                <div style={{ background: "#ffffff", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #e9d5ff" }}>
+                  🍸 <strong>Olives, Cocktail Onions & Grazing Cups</strong>
+                </div>
+                <div style={{ background: "#ffffff", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #e9d5ff" }}>
+                  🥜 <strong>Mix Assorted Nuts & Dried Fruits</strong>
+                </div>
+                <div style={{ background: "#ffffff", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #e9d5ff" }}>
+                  🧀 <strong>Nachos Station with warm cheese & salsa</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Custom Canapés (5 choices) */}
+            <div style={{ marginBottom: "1.5rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "#1e293b", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span>🥪 Choose 5 Canapés for your Grazing Table</span>
+                    <span style={{ fontSize: "0.75rem", color: "#7c3aed", background: "#f5f3ff", padding: "2px 8px", borderRadius: "10px", border: "1px solid #ddd6fe" }}>
+                      {selectedCanapes.length} of 5 selected
+                    </span>
+                  </h4>
+                  <p style={{ margin: "3px 0 0 0", fontSize: "0.76rem", color: "var(--text-muted)" }}>
+                    Select 5 freshly styled finger canapés. Special options add +₱45/pax upgrade.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: "0.55rem" }}>
+                {(dishesMenu.canapes || []).map(canape => {
+                  const isSel = selectedCanapes.includes(canape.name);
+                  const isSpecial = canape.tier === "special" || canape.premium;
+                  return (
+                    <div
+                      key={canape.id || canape.name}
+                      onClick={() => handleCanapeToggle(canape.name)}
+                      style={{
+                        padding: "0.65rem 0.8rem",
+                        borderRadius: "8px",
+                        border: isSel ? "2px solid #7c3aed" : isSpecial ? "1px dashed #f59e0b" : "1px solid var(--border-subtle)",
+                        background: isSel ? "#f5f3ff" : isSpecial ? "#fffdf5" : "#ffffff",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        transition: "all 0.15s ease"
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: "0.82rem", fontWeight: isSel ? 800 : 600, color: isSel ? "#5b21b6" : "var(--text-primary)" }}>
+                          {canape.name}
+                        </div>
+                        {isSpecial && (
+                          <span style={{ fontSize: "0.68rem", color: "#b45309", fontWeight: 700 }}>
+                            ⭐ Special (+₱45/pax)
+                          </span>
+                        )}
+                      </div>
+                      {isSel && <Check size={16} color="#7c3aed" />}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Custom Sliders (4 choices) */}
+            <div style={{ marginBottom: "1.5rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "#1e293b", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span>🍔 Choose 4 Sliders for your Grazing Table</span>
+                    <span style={{ fontSize: "0.75rem", color: "#7c3aed", background: "#f5f3ff", padding: "2px 8px", borderRadius: "10px", border: "1px solid #ddd6fe" }}>
+                      {selectedSliders.length} of 4 selected
+                    </span>
+                  </h4>
+                  <p style={{ margin: "3px 0 0 0", fontSize: "0.76rem", color: "var(--text-muted)" }}>
+                    Select 4 mini sandwiches & burger sliders. Special options add +₱45/pax upgrade.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: "0.55rem" }}>
+                {(dishesMenu.sliders || []).map(slider => {
+                  const isSel = selectedSliders.includes(slider.name);
+                  const isSpecial = slider.tier === "special" || slider.premium;
+                  return (
+                    <div
+                      key={slider.id || slider.name}
+                      onClick={() => handleSliderToggle(slider.name)}
+                      style={{
+                        padding: "0.65rem 0.8rem",
+                        borderRadius: "8px",
+                        border: isSel ? "2px solid #7c3aed" : isSpecial ? "1px dashed #f59e0b" : "1px solid var(--border-subtle)",
+                        background: isSel ? "#f5f3ff" : isSpecial ? "#fffdf5" : "#ffffff",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        transition: "all 0.15s ease"
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: "0.82rem", fontWeight: isSel ? 800 : 600, color: isSel ? "#5b21b6" : "var(--text-primary)" }}>
+                          {slider.name}
+                        </div>
+                        {isSpecial && (
+                          <span style={{ fontSize: "0.68rem", color: "#b45309", fontWeight: 700 }}>
+                            ⭐ Special (+₱45/pax)
+                          </span>
+                        )}
+                      </div>
+                      {isSel && <Check size={16} color="#7c3aed" />}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Package Bargain & Custom Swap Deals Card */}
+            {!isFoodTray && (
+              <div className="card-section" id="section-swap-deals" style={{
+                background: swapDeal !== "none" ? "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)" : "#ffffff",
+                border: swapDeal !== "none" ? "2px solid #f59e0b" : "1px solid var(--border-subtle)",
+                borderRadius: "12px",
+                padding: "1.25rem",
+                marginBottom: "1.25rem",
+                transition: "all 0.25s ease"
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.75rem", marginBottom: "0.85rem" }}>
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <span style={{ fontSize: "1.35rem" }}>🔄</span>
+                      <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 800, color: "var(--text-main)" }}>
+                        Package Bargain & Inclusion Swap Deals
+                      </h3>
+                      {swapDeal !== "none" && (
+                        <span style={{
+                          background: "#d97706",
+                          color: "#ffffff",
+                          fontSize: "0.7rem",
+                          fontWeight: 800,
+                          textTransform: "uppercase",
+                          padding: "2px 8px",
+                          borderRadius: "12px",
+                          letterSpacing: "0.04em"
+                        }}>
+                          Active Swap
+                        </span>
+                      )}
+                    </div>
+                    <p style={{ margin: "4px 0 0 0", fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                      Want to customize inclusions? Authorized swap rules allow trading starch, beverages, and sweets for more hearty viands or pasta:
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+                  gap: "0.75rem"
+                }}>
+                  {/* Option 1: Standard Inclusions */}
+                  <div
+                    onClick={() => setSwapDeal("none")}
+                    style={{
+                      cursor: "pointer",
+                      padding: "0.85rem 1rem",
+                      borderRadius: "10px",
+                      border: swapDeal === "none" ? "2px solid var(--gold-500)" : "1px solid #e2e8f0",
+                      background: swapDeal === "none" ? "var(--gold-50, #fefce8)" : "#ffffff",
+                      transition: "all 0.2s ease"
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+                      <span style={{ fontWeight: 800, fontSize: "0.88rem", color: "#0f172a" }}>
+                        Standard Inclusions
+                      </span>
+                      {swapDeal === "none" && <Check size={18} color="var(--gold-500)" />}
+                    </div>
+                    <div style={{ fontSize: "0.76rem", color: "#64748b", lineHeight: 1.35 }}>
+                      Standard package setup: {baseCourseAllowances.mainDishesCount} Main Viands, {baseCourseAllowances.regSidesCount} Side(s), Desserts, Steamed Rice & Bottomless Drinks.
+                    </div>
+                  </div>
+
+                  {/* Option 2: No Rice + No Drinks + No Dessert -> +1 Extra Main */}
+                  <div
+                    onClick={() => setSwapDeal("extra_main")}
+                    style={{
+                      cursor: "pointer",
+                      padding: "0.85rem 1rem",
+                      borderRadius: "10px",
+                      border: swapDeal === "extra_main" ? "2px solid #b45309" : "1px solid #fed7aa",
+                      background: swapDeal === "extra_main" ? "#fff7ed" : "#fffaf5",
+                      transition: "all 0.2s ease"
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+                      <span style={{ fontWeight: 800, fontSize: "0.88rem", color: "#9a3412", display: "flex", alignItems: "center", gap: "4px" }}>
+                        <span>🥩</span>
+                        <span>+1 Extra Main Dish</span>
+                      </span>
+                      {swapDeal === "extra_main" ? (
+                        <Check size={18} color="#b45309" />
+                      ) : (
+                        <span style={{ fontSize: "0.68rem", fontWeight: 700, color: "#c2410c", background: "#ffedd5", padding: "1px 6px", borderRadius: "8px" }}>
+                          Bargain Deal
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: "0.76rem", color: "#7c2d12", lineHeight: 1.35 }}>
+                      <strong>Waive:</strong> No Rice + No Drinks + No Dessert<br />
+                      <strong>Equivalent:</strong> <strong>+{baseCourseAllowances.mainDishesCount + 1} Total Main Viands</strong> (+1 viand from Beef, Pork, Chicken, or Seafood).
+                    </div>
+                  </div>
+
+                  {/* Option 3: No Rice + No Softdrinks -> +1 Extra Side Dish */}
+                  <div
+                    onClick={() => setSwapDeal("extra_side")}
+                    style={{
+                      cursor: "pointer",
+                      padding: "0.85rem 1rem",
+                      borderRadius: "10px",
+                      border: swapDeal === "extra_side" ? "2px solid #15803d" : "1px solid #bbf7d0",
+                      background: swapDeal === "extra_side" ? "#f0fdf4" : "#f8fdf9",
+                      transition: "all 0.2s ease"
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+                      <span style={{ fontWeight: 800, fontSize: "0.88rem", color: "#166534", display: "flex", alignItems: "center", gap: "4px" }}>
+                        <span>🥗</span>
+                        <span>+1 Extra Side Dish</span>
+                      </span>
+                      {swapDeal === "extra_side" ? (
+                        <Check size={18} color="#15803d" />
+                      ) : (
+                        <span style={{ fontSize: "0.68rem", fontWeight: 700, color: "#15803d", background: "#dcfce7", padding: "1px 6px", borderRadius: "8px" }}>
+                          Bargain Deal
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: "0.76rem", color: "#14532d", lineHeight: 1.35 }}>
+                      <strong>Waive:</strong> No Rice + No Softdrinks<br />
+                      <strong>Equivalent:</strong> <strong>+{baseCourseAllowances.regSidesCount + 1} Total Side Dishes</strong> (+1 Pasta or Veg dish). Desserts remain included!
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Authentic Filipino Viands Picker */}
+            <div className="card-section" id="section-main-dishes">
+              <div className="section-header">
+                <div className="section-title">
+                  <div className="step-number">3</div>
+                  <span>{isFoodTray ? "Select Viands in Food Trays" : "Filipino Viand & Course Selection"}</span>
+                </div>
+                <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                  {maxMainDishes} Main Dish{maxMainDishes > 1 ? "es" : ""} {isFoodTray ? "in Trays" : "Included"}
+                </span>
+              </div>
+
+              {/* MAIN DISHES ALLOWANCE TRACKER BANNER */}
+              <div style={{
+                background: selectedMainDishes.length === maxMainDishes
+                  ? "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)"
+                  : "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)",
+                border: selectedMainDishes.length === maxMainDishes ? "1px solid #86efac" : "1px solid #fde68a",
+                borderRadius: "12px",
+                padding: "1rem 1.25rem",
+                marginBottom: "1.5rem"
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <span style={{ fontSize: "1.25rem" }}>🍽️</span>
+                      <span style={{ fontWeight: 800, fontSize: "1.05rem", color: selectedMainDishes.length === maxMainDishes ? "#166534" : "#92400e" }}>
+                        Main Dishes Allowance: {selectedMainDishes.length} of {maxMainDishes} Selected
+                      </span>
+                      {selectedMainDishes.length === maxMainDishes && (
+                        <span style={{ background: "#16a34a", color: "#fff", fontSize: "0.72rem", fontWeight: 700, padding: "2px 8px", borderRadius: "12px" }}>
+                          Complete ✓
+                        </span>
+                      )}
+                    </div>
+                    <p style={{ margin: "4px 0 0 0", fontSize: "0.8rem", color: selectedMainDishes.length === maxMainDishes ? "#15803d" : "#b45309" }}>
+                      {selectedMainDishes.length === maxMainDishes
+                        ? `You've selected all ${maxMainDishes} main dishes for ${currentPkg.name}. You can click any selected dish to remove or swap it.`
+                        : `Pick ${maxMainDishes - selectedMainDishes.length} more main dish(es). You can choose multiple dishes from the same course (e.g. 2 Beef, 2 Chicken, etc.)!`}
+                    </p>
+                  </div>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-secondary)" }}>
+                    Package: <span style={{ color: "var(--gold-600)" }}>{currentPkg.name}</span>
+                  </div>
+                </div>
+
+                {/* Chips of currently selected main dishes with quick remove 'X' */}
+                {selectedMainDishes.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginTop: "0.85rem", paddingTop: "0.75rem", borderTop: "1px dashed rgba(0,0,0,0.12)" }}>
+                    {selectedMainDishes.map((dishName, idx) => {
+                      const dishObj = getDishObject("", dishName);
+                      const isSpecial = dishObj && (dishObj.tier === "special" || dishObj.premium);
+                      return (
+                        <div
+                          key={dishName + idx}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            background: isSpecial ? "#fef3c7" : "#ffffff",
+                            border: isSpecial ? "1px solid #f59e0b" : "1px solid #cbd5e1",
+                            color: isSpecial ? "#92400e" : "#1e293b",
+                            padding: "4px 10px",
+                            borderRadius: "20px",
+                            fontSize: "0.78rem",
+                            fontWeight: 600,
+                            boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+                          }}
+                        >
+                          {isSpecial && <span>⭐</span>}
+                          <span>{dishName}</span>
+                          {isSpecial && <span style={{ fontSize: "0.7rem", color: "#b45309" }}>(+₱{getDishUpgradePrice(dishObj)}/pax)</span>}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveMainDish(dishName)}
+                            title="Remove dish"
+                            style={{
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              padding: "2px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              color: "#ef4444",
+                              marginLeft: "2px"
+                            }}
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {dishLimitNotice && (
+                  <div style={{ marginTop: "0.65rem", background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b", padding: "6px 12px", borderRadius: "8px", fontSize: "0.78rem", fontWeight: 600 }}>
+                    ⚠️ {dishLimitNotice}
+                  </div>
+                )}
+              </div>
+
+              {/* Beef Options */}
+              {renderViandCategory("beef", "Beef Course", "🥩")}
+
+              {/* Pork Options */}
+              {renderViandCategory("pork", "Pork Course", "🍖")}
+
+              {/* Chicken Options */}
+              {renderViandCategory("chicken", "Chicken Course", "🍗")}
+
+              {/* Seafood Options */}
+              {renderViandCategory("fish", "Seafood Course", "🐟")}
+            </div>
+
+            {/* Dedicated Section: Side Dish Selection with MENU BOXES */}
+            <div className="card-section" id="section-side-dishes" style={{ marginTop: "1.25rem" }}>
+              <div className="section-header">
+                <div className="section-title">
                   <span style={{ fontSize: "1.25rem" }}>🥗</span>
-                  <span style={{ fontWeight: 800, fontSize: "1.05rem", color: selectedSides.length === courseAllowances.regSidesCount ? "#166534" : "#92400e" }}>
-                    Regular Sides Allowance: {selectedSides.length} of {courseAllowances.regSidesCount} Selected
+                  <span>Side Dish Selection (Pasta & Vegetables)</span>
+                </div>
+                <span style={{
+                  fontSize: "0.78rem",
+                  fontWeight: 700,
+                  color: "#166534",
+                  background: "#dcfce7",
+                  padding: "3px 10px",
+                  borderRadius: "12px",
+                  border: "1px solid #86efac"
+                }}>
+                  Included: {courseAllowances.regSidesCount} Regular Side{courseAllowances.regSidesCount > 1 ? "s" : ""}{courseAllowances.specSidesCount > 0 ? ` + ${courseAllowances.specSidesCount} Special Side` : ""}
+                </span>
+              </div>
+
+              {/* ALLOWANCE TRACKER BANNER FOR SIDES */}
+              <div style={{
+                background: selectedSides.length === courseAllowances.regSidesCount
+                  ? "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)"
+                  : "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)",
+                border: selectedSides.length === courseAllowances.regSidesCount ? "1px solid #86efac" : "1px solid #fde68a",
+                borderRadius: "12px",
+                padding: "1rem 1.25rem",
+                marginBottom: "1.25rem"
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <span style={{ fontSize: "1.25rem" }}>🥗</span>
+                      <span style={{ fontWeight: 800, fontSize: "1.05rem", color: selectedSides.length === courseAllowances.regSidesCount ? "#166534" : "#92400e" }}>
+                        Regular Sides Allowance: {selectedSides.length} of {courseAllowances.regSidesCount} Selected
+                      </span>
+                      {selectedSides.length === courseAllowances.regSidesCount && (
+                        <span style={{ background: "#16a34a", color: "#fff", fontSize: "0.72rem", fontWeight: 700, padding: "2px 8px", borderRadius: "12px" }}>
+                          Complete ✓
+                        </span>
+                      )}
+                    </div>
+                    <p style={{ margin: "4px 0 0 0", fontSize: "0.8rem", color: selectedSides.length === courseAllowances.regSidesCount ? "#15803d" : "#b45309" }}>
+                      {selectedSides.length === courseAllowances.regSidesCount
+                        ? `You've selected all ${courseAllowances.regSidesCount} regular side dish menu box(es) for ${currentPkg.name}. Click any menu box below to change.`
+                        : `Please click ${courseAllowances.regSidesCount - selectedSides.length} more side dish menu box below to complete your inclusion.`}
+                    </p>
+                  </div>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-secondary)" }}>
+                    Package: <span style={{ color: "var(--gold-600)" }}>{currentPkg.name}</span>
+                  </div>
+                </div>
+
+                {/* Chips of currently selected side dishes with quick remove 'X' */}
+                {selectedSides.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginTop: "0.85rem", paddingTop: "0.75rem", borderTop: "1px dashed rgba(0,0,0,0.12)" }}>
+                    {selectedSides.map((dishName) => (
+                      <div
+                        key={dishName}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          background: "#ffffff",
+                          border: "1px solid #86efac",
+                          color: "#166534",
+                          padding: "4px 10px",
+                          borderRadius: "20px",
+                          fontSize: "0.8rem",
+                          fontWeight: 700,
+                          boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+                        }}
+                      >
+                        <span>🥗 {dishName}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSide(dishName)}
+                          title="Remove side"
+                          style={{
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            padding: "2px",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            color: "#ef4444",
+                            marginLeft: "2px"
+                          }}
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {sideLimitNotice && (
+                  <div style={{ marginTop: "0.65rem", background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b", padding: "6px 12px", borderRadius: "8px", fontSize: "0.78rem", fontWeight: 600 }}>
+                    ⚠️ {sideLimitNotice}
+                  </div>
+                )}
+              </div>
+
+              {/* REGULAR SIDE DISHES MENU BOXES GRID */}
+              <div style={{ marginBottom: "1.5rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
+                  <span style={{
+                    fontSize: "0.74rem",
+                    fontWeight: 800,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    color: "#166534",
+                    background: "#dcfce7",
+                    border: "1px solid #86efac",
+                    padding: "2px 8px",
+                    borderRadius: "4px"
+                  }}>
+                    REGULAR SIDE DISHES ({courseAllowances.regSidesCount} Included)
                   </span>
-                  {selectedSides.length === courseAllowances.regSidesCount && (
-                    <span style={{ background: "#16a34a", color: "#fff", fontSize: "0.72rem", fontWeight: 700, padding: "2px 8px", borderRadius: "12px" }}>
-                      Complete ✓
+                  <span style={{ fontSize: "0.74rem", color: "var(--text-muted)" }}>
+                    Click any menu box to select
+                  </span>
+                </div>
+
+                <div className="dish-options-grid">
+                  {(dishesMenu.noodlesOrVeg || []).filter(d => d.tier !== "special" && !d.premium).map(dish => {
+                    const isSelected = selectedSides.includes(dish.name);
+                    return (
+                      <div
+                        key={dish.id}
+                        className={`dish-card-item ${isSelected ? "selected" : ""}`}
+                        onClick={() => handleSideClick(dish)}
+                        style={{
+                          cursor: "pointer",
+                          transition: "all 0.18s ease"
+                        }}
+                      >
+                        <div className="dish-title">
+                          <span>{dish.name}</span>
+                          {isSelected && <Check size={16} color="var(--gold-400)" />}
+                        </div>
+                        {isSelected && (
+                          <div style={{ fontSize: "0.68rem", color: "var(--gold-600)", fontWeight: 700, marginTop: "2px" }}>
+                            ✓ Selected (Click to remove)
+                          </div>
+                        )}
+                        {dish.description && <div className="dish-desc">{dish.description}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* SPECIAL SIDE DISH MENU BOXES (Included in Package 4, or Upgradeable for ₱65/pax) */}
+              <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px dashed var(--border-subtle)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{
+                      fontSize: "0.74rem",
+                      fontWeight: 800,
+                      letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                      color: "#92400e",
+                      background: "#fef3c7",
+                      border: "1px solid #fde68a",
+                      padding: "2px 8px",
+                      borderRadius: "4px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px"
+                    }}>
+                      ⭐ SPECIAL SIDE DISH
                     </span>
+                    <span style={{
+                      fontSize: "0.72rem",
+                      color: courseAllowances.specSidesCount > 0 ? "#166534" : "#b45309",
+                      fontWeight: 700,
+                      background: courseAllowances.specSidesCount > 0 ? "#dcfce7" : "#fef3c7",
+                      padding: "2px 8px",
+                      borderRadius: "10px",
+                      border: courseAllowances.specSidesCount > 0 ? "1px solid #86efac" : "1px solid #fcd34d"
+                    }}>
+                      {courseAllowances.specSidesCount > 0 ? "⭐ Included in Package (₱0 Fee)" : "⭐ Upgrade Available (+₱65/pax)"}
+                    </span>
+                  </div>
+                  {selectedSpecialSide && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span style={{ fontSize: "0.78rem", color: "#92400e", fontWeight: 700 }}>
+                        Selected: {selectedSpecialSide} {courseAllowances.specSidesCount > 0 ? "(Included)" : "(+₱65/pax)"} ✓
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedSpecialSide("")}
+                        title="Remove Special Side"
+                        style={{
+                          background: "#fee2e2",
+                          border: "1px solid #fca5a5",
+                          borderRadius: "50%",
+                          width: "18px",
+                          height: "18px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                          color: "#b91c1c",
+                          fontSize: "10px",
+                          fontWeight: 800
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
                   )}
                 </div>
-                <p style={{ margin: "4px 0 0 0", fontSize: "0.8rem", color: selectedSides.length === courseAllowances.regSidesCount ? "#15803d" : "#b45309" }}>
-                  {selectedSides.length === courseAllowances.regSidesCount
-                    ? `You've selected all ${courseAllowances.regSidesCount} regular side dish menu box(es) for ${currentPkg.name}. Click any menu box below to change.`
-                    : `Please click ${courseAllowances.regSidesCount - selectedSides.length} more side dish menu box below to complete your inclusion.`}
-                </p>
-              </div>
-              <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-secondary)" }}>
-                Package: <span style={{ color: "var(--gold-600)" }}>{currentPkg.name}</span>
-              </div>
-            </div>
 
-            {/* Chips of currently selected side dishes with quick remove 'X' */}
-            {selectedSides.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginTop: "0.85rem", paddingTop: "0.75rem", borderTop: "1px dashed rgba(0,0,0,0.12)" }}>
-                {selectedSides.map((dishName) => (
-                  <div
-                    key={dishName}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      background: "#ffffff",
-                      border: "1px solid #86efac",
-                      color: "#166534",
-                      padding: "4px 10px",
-                      borderRadius: "20px",
-                      fontSize: "0.8rem",
-                      fontWeight: 700,
-                      boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
-                    }}
-                  >
-                    <span>🥗 {dishName}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveSide(dishName)}
-                      title="Remove side"
-                      style={{
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        padding: "2px",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        color: "#ef4444",
-                        marginLeft: "2px"
-                      }}
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {sideLimitNotice && (
-              <div style={{ marginTop: "0.65rem", background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b", padding: "6px 12px", borderRadius: "8px", fontSize: "0.78rem", fontWeight: 600 }}>
-                ⚠️ {sideLimitNotice}
-              </div>
-            )}
-          </div>
-
-          {/* REGULAR SIDE DISHES MENU BOXES GRID */}
-          <div style={{ marginBottom: "1.5rem" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
-              <span style={{ 
-                fontSize: "0.74rem", 
-                fontWeight: 800, 
-                letterSpacing: "0.06em", 
-                textTransform: "uppercase", 
-                color: "#166534", 
-                background: "#dcfce7", 
-                border: "1px solid #86efac",
-                padding: "2px 8px", 
-                borderRadius: "4px" 
-              }}>
-                REGULAR SIDE DISHES ({courseAllowances.regSidesCount} Included)
-              </span>
-              <span style={{ fontSize: "0.74rem", color: "var(--text-muted)" }}>
-                Click any menu box to select
-              </span>
-            </div>
-
-            <div className="dish-options-grid">
-              {(dishesMenu.noodlesOrVeg || []).filter(d => d.tier !== "special" && !d.premium).map(dish => {
-                const isSelected = selectedSides.includes(dish.name);
-                return (
-                  <div
-                    key={dish.id}
-                    className={`dish-card-item ${isSelected ? "selected" : ""}`}
-                    onClick={() => handleSideClick(dish)}
-                    style={{
-                      cursor: "pointer",
-                      transition: "all 0.18s ease"
-                    }}
-                  >
-                    <div className="dish-title">
-                      <span>{dish.name}</span>
-                      {isSelected && <Check size={16} color="var(--gold-400)" />}
-                    </div>
-                    {isSelected && (
-                      <div style={{ fontSize: "0.68rem", color: "var(--gold-600)", fontWeight: 700, marginTop: "2px" }}>
-                        ✓ Selected (Click to remove)
+                <div className="dish-options-grid">
+                  {(dishesMenu.noodlesOrVeg || []).filter(d => d.tier === "special" || d.premium).map(dish => {
+                    const isSelected = selectedSpecialSide === dish.name;
+                    return (
+                      <div
+                        key={dish.id}
+                        className={`dish-card-item special-dish-card ${isSelected ? "selected" : ""}`}
+                        onClick={() => handleSpecialSideClick(dish)}
+                        style={{
+                          cursor: "pointer",
+                          borderLeft: isSelected ? "4px solid var(--gold-500)" : "3px solid #f59e0b",
+                          background: isSelected ? "var(--gold-50)" : "rgba(254, 243, 199, 0.2)",
+                          transition: "all 0.18s ease"
+                        }}
+                      >
+                        <div className="dish-title">
+                          <span>⭐ {dish.name}</span>
+                          {isSelected && <Check size={16} color="var(--gold-400)" />}
+                        </div>
+                        <div style={{ display: "inline-block", margin: "2px 0 4px 0" }}>
+                          <span style={{
+                            fontSize: "0.68rem",
+                            fontWeight: 700,
+                            color: courseAllowances.specSidesCount > 0 ? "#166534" : "#b45309",
+                            background: courseAllowances.specSidesCount > 0 ? "#dcfce7" : "#fef3c7",
+                            padding: "1px 6px",
+                            borderRadius: "10px",
+                            border: courseAllowances.specSidesCount > 0 ? "1px solid #86efac" : "1px solid #fcd34d"
+                          }}>
+                            {courseAllowances.specSidesCount > 0 ? "⭐ Included (₱0 Fee)" : "⭐ Upgrade (+₱65/pax)"}
+                          </span>
+                        </div>
+                        {isSelected && (
+                          <div style={{ fontSize: "0.68rem", color: "#b45309", fontWeight: 700 }}>
+                            ✓ Selected {courseAllowances.specSidesCount > 0 ? "(Included)" : "(+₱65/pax Upgrade)"} (Click to deselect)
+                          </div>
+                        )}
+                        {dish.description && <div className="dish-desc">{dish.description}</div>}
                       </div>
-                    )}
-                    {dish.description && <div className="dish-desc">{dish.description}</div>}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* SPECIAL SIDE DISH MENU BOXES (Included in Package 4, or Upgradeable for ₱65/pax) */}
-          <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px dashed var(--border-subtle)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <span style={{ 
-                  fontSize: "0.74rem", 
-                  fontWeight: 800, 
-                  letterSpacing: "0.06em", 
-                  textTransform: "uppercase", 
-                  color: "#92400e", 
-                  background: "#fef3c7", 
-                  border: "1px solid #fde68a",
-                  padding: "2px 8px", 
-                  borderRadius: "4px",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "4px"
-                }}>
-                  ⭐ SPECIAL SIDE DISH
-                </span>
-                <span style={{ 
-                  fontSize: "0.72rem", 
-                  color: courseAllowances.specSidesCount > 0 ? "#166534" : "#b45309", 
-                  fontWeight: 700, 
-                  background: courseAllowances.specSidesCount > 0 ? "#dcfce7" : "#fef3c7", 
-                  padding: "2px 8px", 
-                  borderRadius: "10px", 
-                  border: courseAllowances.specSidesCount > 0 ? "1px solid #86efac" : "1px solid #fcd34d" 
-                }}>
-                  {courseAllowances.specSidesCount > 0 ? "⭐ Included in Package (₱0 Fee)" : "⭐ Upgrade Available (+₱65/pax)"}
-                </span>
-              </div>
-              {selectedSpecialSide && (
-                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <span style={{ fontSize: "0.78rem", color: "#92400e", fontWeight: 700 }}>
-                    Selected: {selectedSpecialSide} {courseAllowances.specSidesCount > 0 ? "(Included)" : "(+₱65/pax)"} ✓
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedSpecialSide("")}
-                    title="Remove Special Side"
-                    style={{
-                      background: "#fee2e2",
-                      border: "1px solid #fca5a5",
-                      borderRadius: "50%",
-                      width: "18px",
-                      height: "18px",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      cursor: "pointer",
-                      color: "#b91c1c",
-                      fontSize: "10px",
-                      fontWeight: 800
-                    }}
-                  >
-                    ✕
-                  </button>
+                    );
+                  })}
                 </div>
-              )}
-            </div>
-
-            <div className="dish-options-grid">
-              {(dishesMenu.noodlesOrVeg || []).filter(d => d.tier === "special" || d.premium).map(dish => {
-                const isSelected = selectedSpecialSide === dish.name;
-                return (
-                  <div
-                    key={dish.id}
-                    className={`dish-card-item special-dish-card ${isSelected ? "selected" : ""}`}
-                    onClick={() => handleSpecialSideClick(dish)}
-                    style={{
-                      cursor: "pointer",
-                      borderLeft: isSelected ? "4px solid var(--gold-500)" : "3px solid #f59e0b",
-                      background: isSelected ? "var(--gold-50)" : "rgba(254, 243, 199, 0.2)",
-                      transition: "all 0.18s ease"
-                    }}
-                  >
-                    <div className="dish-title">
-                      <span>⭐ {dish.name}</span>
-                      {isSelected && <Check size={16} color="var(--gold-400)" />}
-                    </div>
-                    <div style={{ display: "inline-block", margin: "2px 0 4px 0" }}>
-                      <span style={{ 
-                        fontSize: "0.68rem", 
-                        fontWeight: 700, 
-                        color: courseAllowances.specSidesCount > 0 ? "#166534" : "#b45309", 
-                        background: courseAllowances.specSidesCount > 0 ? "#dcfce7" : "#fef3c7", 
-                        padding: "1px 6px", 
-                        borderRadius: "10px", 
-                        border: courseAllowances.specSidesCount > 0 ? "1px solid #86efac" : "1px solid #fcd34d" 
-                      }}>
-                        {courseAllowances.specSidesCount > 0 ? "⭐ Included (₱0 Fee)" : "⭐ Upgrade (+₱65/pax)"}
-                      </span>
-                    </div>
-                    {isSelected && (
-                      <div style={{ fontSize: "0.68rem", color: "#b45309", fontWeight: 700 }}>
-                        ✓ Selected {courseAllowances.specSidesCount > 0 ? "(Included)" : "(+₱65/pax Upgrade)"} (Click to deselect)
-                      </div>
-                    )}
-                    {dish.description && <div className="dish-desc">{dish.description}</div>}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Dedicated Section: Dessert Selection with MENU BOXES */}
-        <div className="card-section" id="section-desserts" style={{ marginTop: "1.25rem" }}>
-          <div className="section-header">
-            <div className="section-title">
-              <span style={{ fontSize: "1.25rem" }}>🍮</span>
-              <span>Dessert Selection</span>
-            </div>
-            <span style={{ 
-              fontSize: "0.78rem", 
-              fontWeight: 700,
-              color: swapDeal === "extra_main" ? "#b45309" : "#166534", 
-              background: swapDeal === "extra_main" ? "#fef3c7" : "#dcfce7", 
-              padding: "3px 10px", 
-              borderRadius: "12px", 
-              border: swapDeal === "extra_main" ? "1px solid #fde68a" : "1px solid #86efac" 
-            }}>
-              {swapDeal === "extra_main" 
-                ? "Waived (Swapped for +1 Main Dish)" 
-                : `Included: ${courseAllowances.regDessertsCount} Regular Dessert${courseAllowances.specDessertsCount > 0 ? ` + ${courseAllowances.specDessertsCount} Special Dessert` : ""}`}
-            </span>
-          </div>
-
-          {swapDeal === "extra_main" ? (
-            <div style={{
-              background: "#fffaf5",
-              border: "2px dashed #fdba74",
-              borderRadius: "12px",
-              padding: "1.75rem 1.5rem",
-              textAlign: "center"
-            }}>
-              <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>🔄</div>
-              <div style={{ fontSize: "1.05rem", fontWeight: 800, color: "#9a3412" }}>
-                Desserts Waived for +1 Extra Main Dish
               </div>
-              <p style={{ margin: "6px auto 0 auto", maxWidth: "480px", fontSize: "0.82rem", color: "#7c2d12", lineHeight: 1.45 }}>
-                Under the active bargain deal, all dessert allowances have been swapped to give your package an extra hearty Main Viand (+1 Beef, Pork, Chicken, or Seafood).
-              </p>
-              <button
-                type="button"
-                onClick={() => setSwapDeal("none")}
-                style={{
-                  marginTop: "1rem",
-                  background: "#ffffff",
-                  border: "1px solid #fed7aa",
-                  color: "#c2410c",
-                  fontWeight: 700,
-                  fontSize: "0.78rem",
-                  padding: "6px 14px",
-                  borderRadius: "8px",
-                  cursor: "pointer"
-                }}
-              >
-                Restore Desserts (Switch to Standard Inclusions)
-              </button>
             </div>
-          ) : (
-            <>
-              {/* ALLOWANCE TRACKER BANNER FOR DESSERTS */}
-          <div style={{
-            background: selectedDessertsList.length === courseAllowances.regDessertsCount 
-              ? "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)" 
-              : "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)",
-            border: selectedDessertsList.length === courseAllowances.regDessertsCount ? "1px solid #86efac" : "1px solid #fde68a",
-            borderRadius: "12px",
-            padding: "1rem 1.25rem",
-            marginBottom: "1.25rem"
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+
+            {/* Dedicated Section: Dessert Selection with MENU BOXES */}
+            <div className="card-section" id="section-desserts" style={{ marginTop: "1.25rem" }}>
+              <div className="section-header">
+                <div className="section-title">
                   <span style={{ fontSize: "1.25rem" }}>🍮</span>
-                  <span style={{ fontWeight: 800, fontSize: "1.05rem", color: selectedDessertsList.length === courseAllowances.regDessertsCount ? "#166534" : "#92400e" }}>
-                    Regular Desserts Allowance: {selectedDessertsList.length} of {courseAllowances.regDessertsCount} Selected
-                  </span>
-                  {selectedDessertsList.length === courseAllowances.regDessertsCount && (
-                    <span style={{ background: "#16a34a", color: "#fff", fontSize: "0.72rem", fontWeight: 700, padding: "2px 8px", borderRadius: "12px" }}>
-                      Complete ✓
-                    </span>
-                  )}
+                  <span>Dessert Selection</span>
                 </div>
-                <p style={{ margin: "4px 0 0 0", fontSize: "0.8rem", color: selectedDessertsList.length === courseAllowances.regDessertsCount ? "#15803d" : "#b45309" }}>
-                  {selectedDessertsList.length === courseAllowances.regDessertsCount
-                    ? `You've selected all ${courseAllowances.regDessertsCount} regular dessert menu box(es) for ${currentPkg.name}. Click any menu box below to change.`
-                    : `Please click ${courseAllowances.regDessertsCount - selectedDessertsList.length} more dessert menu box below.`}
-                </p>
-              </div>
-              <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-secondary)" }}>
-                Package: <span style={{ color: "var(--gold-600)" }}>{currentPkg.name}</span>
-              </div>
-            </div>
-
-            {/* Chips of currently selected desserts with quick remove 'X' */}
-            {selectedDessertsList.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginTop: "0.85rem", paddingTop: "0.75rem", borderTop: "1px dashed rgba(0,0,0,0.12)" }}>
-                {selectedDessertsList.map((dishName) => (
-                  <div
-                    key={dishName}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      background: "#ffffff",
-                      border: "1px solid #86efac",
-                      color: "#166534",
-                      padding: "4px 10px",
-                      borderRadius: "20px",
-                      fontSize: "0.8rem",
-                      fontWeight: 700,
-                      boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
-                    }}
-                  >
-                    <span>🍮 {dishName}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveDessert(dishName)}
-                      title="Remove dessert"
-                      style={{
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        padding: "2px",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        color: "#ef4444",
-                        marginLeft: "2px"
-                      }}
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {dessertLimitNotice && (
-              <div style={{ marginTop: "0.65rem", background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b", padding: "6px 12px", borderRadius: "8px", fontSize: "0.78rem", fontWeight: 600 }}>
-                ⚠️ {dessertLimitNotice}
-              </div>
-            )}
-          </div>
-
-          {/* REGULAR DESSERTS MENU BOXES GRID */}
-          <div style={{ marginBottom: "1.5rem" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
-              <span style={{ 
-                fontSize: "0.74rem", 
-                fontWeight: 800, 
-                letterSpacing: "0.06em", 
-                textTransform: "uppercase", 
-                color: "#166534", 
-                background: "#dcfce7", 
-                border: "1px solid #86efac",
-                padding: "2px 8px", 
-                borderRadius: "4px" 
-              }}>
-                REGULAR DESSERTS ({courseAllowances.regDessertsCount} Included)
-              </span>
-              <span style={{ fontSize: "0.74rem", color: "var(--text-muted)" }}>
-                Click any menu box to select
-              </span>
-            </div>
-
-            <div className="dish-options-grid">
-              {(dishesMenu.dessert || []).filter(d => d.tier !== "special" && !d.premium).map(dish => {
-                const isSelected = selectedDessertsList.includes(dish.name);
-                return (
-                  <div
-                    key={dish.id}
-                    className={`dish-card-item ${isSelected ? "selected" : ""}`}
-                    onClick={() => handleDessertClick(dish)}
-                    style={{
-                      cursor: "pointer",
-                      transition: "all 0.18s ease"
-                    }}
-                  >
-                    <div className="dish-title">
-                      <span>{dish.name}</span>
-                      {isSelected && <Check size={16} color="var(--gold-400)" />}
-                    </div>
-                    {isSelected && (
-                      <div style={{ fontSize: "0.68rem", color: "var(--gold-600)", fontWeight: 700, marginTop: "2px" }}>
-                        ✓ Selected (Click to remove)
-                      </div>
-                    )}
-                    {dish.description && <div className="dish-desc">{dish.description}</div>}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* SPECIAL DESSERT MENU BOXES (Included in Package 3 & 4, or Upgradeable for ₱65/pax) */}
-          <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px dashed var(--border-subtle)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <span style={{ 
-                  fontSize: "0.74rem", 
-                  fontWeight: 800, 
-                  letterSpacing: "0.06em", 
-                  textTransform: "uppercase", 
-                  color: "#92400e", 
-                  background: "#fef3c7", 
-                  border: "1px solid #fde68a",
-                  padding: "2px 8px", 
-                  borderRadius: "4px",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "4px"
+                <span style={{
+                  fontSize: "0.78rem",
+                  fontWeight: 700,
+                  color: swapDeal === "extra_main" ? "#b45309" : "#166534",
+                  background: swapDeal === "extra_main" ? "#fef3c7" : "#dcfce7",
+                  padding: "3px 10px",
+                  borderRadius: "12px",
+                  border: swapDeal === "extra_main" ? "1px solid #fde68a" : "1px solid #86efac"
                 }}>
-                  ⭐ SPECIAL DESSERT
-                </span>
-                <span style={{ 
-                  fontSize: "0.72rem", 
-                  color: courseAllowances.specDessertsCount > 0 ? "#166534" : "#b45309", 
-                  fontWeight: 700, 
-                  background: courseAllowances.specDessertsCount > 0 ? "#dcfce7" : "#fef3c7", 
-                  padding: "2px 8px", 
-                  borderRadius: "10px", 
-                  border: courseAllowances.specDessertsCount > 0 ? "1px solid #86efac" : "1px solid #fcd34d" 
-                }}>
-                  {courseAllowances.specDessertsCount > 0 ? "⭐ Included in Package (₱0 Fee)" : "⭐ Upgrade Available (+₱65/pax)"}
+                  {swapDeal === "extra_main"
+                    ? "Waived (Swapped for +1 Main Dish)"
+                    : `Included: ${courseAllowances.regDessertsCount} Regular Dessert${courseAllowances.specDessertsCount > 0 ? ` + ${courseAllowances.specDessertsCount} Special Dessert` : ""}`}
                 </span>
               </div>
-              {selectedSpecialDessert && (
-                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <span style={{ fontSize: "0.78rem", color: "#92400e", fontWeight: 700 }}>
-                    Selected: {selectedSpecialDessert} {courseAllowances.specDessertsCount > 0 ? "(Included)" : "(+₱65/pax)"} ✓
-                  </span>
+
+              {swapDeal === "extra_main" ? (
+                <div style={{
+                  background: "#fffaf5",
+                  border: "2px dashed #fdba74",
+                  borderRadius: "12px",
+                  padding: "1.75rem 1.5rem",
+                  textAlign: "center"
+                }}>
+                  <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>🔄</div>
+                  <div style={{ fontSize: "1.05rem", fontWeight: 800, color: "#9a3412" }}>
+                    Desserts Waived for +1 Extra Main Dish
+                  </div>
+                  <p style={{ margin: "6px auto 0 auto", maxWidth: "480px", fontSize: "0.82rem", color: "#7c2d12", lineHeight: 1.45 }}>
+                    Under the active bargain deal, all dessert allowances have been swapped to give your package an extra hearty Main Viand (+1 Beef, Pork, Chicken, or Seafood).
+                  </p>
                   <button
                     type="button"
-                    onClick={() => setSelectedSpecialDessert("")}
-                    title="Remove Special Dessert"
+                    onClick={() => setSwapDeal("none")}
                     style={{
-                      background: "#fee2e2",
-                      border: "1px solid #fca5a5",
-                      borderRadius: "50%",
-                      width: "18px",
-                      height: "18px",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      cursor: "pointer",
-                      color: "#b91c1c",
-                      fontSize: "10px",
-                      fontWeight: 800
+                      marginTop: "1rem",
+                      background: "#ffffff",
+                      border: "1px solid #fed7aa",
+                      color: "#c2410c",
+                      fontWeight: 700,
+                      fontSize: "0.78rem",
+                      padding: "6px 14px",
+                      borderRadius: "8px",
+                      cursor: "pointer"
                     }}
                   >
-                    ✕
+                    Restore Desserts (Switch to Standard Inclusions)
                   </button>
                 </div>
+              ) : (
+                <>
+                  {/* ALLOWANCE TRACKER BANNER FOR DESSERTS */}
+                  <div style={{
+                    background: selectedDessertsList.length === courseAllowances.regDessertsCount
+                      ? "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)"
+                      : "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)",
+                    border: selectedDessertsList.length === courseAllowances.regDessertsCount ? "1px solid #86efac" : "1px solid #fde68a",
+                    borderRadius: "12px",
+                    padding: "1rem 1.25rem",
+                    marginBottom: "1.25rem"
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                          <span style={{ fontSize: "1.25rem" }}>🍮</span>
+                          <span style={{ fontWeight: 800, fontSize: "1.05rem", color: selectedDessertsList.length === courseAllowances.regDessertsCount ? "#166534" : "#92400e" }}>
+                            Regular Desserts Allowance: {selectedDessertsList.length} of {courseAllowances.regDessertsCount} Selected
+                          </span>
+                          {selectedDessertsList.length === courseAllowances.regDessertsCount && (
+                            <span style={{ background: "#16a34a", color: "#fff", fontSize: "0.72rem", fontWeight: 700, padding: "2px 8px", borderRadius: "12px" }}>
+                              Complete ✓
+                            </span>
+                          )}
+                        </div>
+                        <p style={{ margin: "4px 0 0 0", fontSize: "0.8rem", color: selectedDessertsList.length === courseAllowances.regDessertsCount ? "#15803d" : "#b45309" }}>
+                          {selectedDessertsList.length === courseAllowances.regDessertsCount
+                            ? `You've selected all ${courseAllowances.regDessertsCount} regular dessert menu box(es) for ${currentPkg.name}. Click any menu box below to change.`
+                            : `Please click ${courseAllowances.regDessertsCount - selectedDessertsList.length} more dessert menu box below.`}
+                        </p>
+                      </div>
+                      <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-secondary)" }}>
+                        Package: <span style={{ color: "var(--gold-600)" }}>{currentPkg.name}</span>
+                      </div>
+                    </div>
+
+                    {/* Chips of currently selected desserts with quick remove 'X' */}
+                    {selectedDessertsList.length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginTop: "0.85rem", paddingTop: "0.75rem", borderTop: "1px dashed rgba(0,0,0,0.12)" }}>
+                        {selectedDessertsList.map((dishName) => (
+                          <div
+                            key={dishName}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "6px",
+                              background: "#ffffff",
+                              border: "1px solid #86efac",
+                              color: "#166534",
+                              padding: "4px 10px",
+                              borderRadius: "20px",
+                              fontSize: "0.8rem",
+                              fontWeight: 700,
+                              boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+                            }}
+                          >
+                            <span>🍮 {dishName}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveDessert(dishName)}
+                              title="Remove dessert"
+                              style={{
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                padding: "2px",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                color: "#ef4444",
+                                marginLeft: "2px"
+                              }}
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {dessertLimitNotice && (
+                      <div style={{ marginTop: "0.65rem", background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b", padding: "6px 12px", borderRadius: "8px", fontSize: "0.78rem", fontWeight: 600 }}>
+                        ⚠️ {dessertLimitNotice}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* REGULAR DESSERTS MENU BOXES GRID */}
+                  <div style={{ marginBottom: "1.5rem" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
+                      <span style={{
+                        fontSize: "0.74rem",
+                        fontWeight: 800,
+                        letterSpacing: "0.06em",
+                        textTransform: "uppercase",
+                        color: "#166534",
+                        background: "#dcfce7",
+                        border: "1px solid #86efac",
+                        padding: "2px 8px",
+                        borderRadius: "4px"
+                      }}>
+                        REGULAR DESSERTS ({courseAllowances.regDessertsCount} Included)
+                      </span>
+                      <span style={{ fontSize: "0.74rem", color: "var(--text-muted)" }}>
+                        Click any menu box to select
+                      </span>
+                    </div>
+
+                    <div className="dish-options-grid">
+                      {(dishesMenu.dessert || []).filter(d => d.tier !== "special" && !d.premium).map(dish => {
+                        const isSelected = selectedDessertsList.includes(dish.name);
+                        return (
+                          <div
+                            key={dish.id}
+                            className={`dish-card-item ${isSelected ? "selected" : ""}`}
+                            onClick={() => handleDessertClick(dish)}
+                            style={{
+                              cursor: "pointer",
+                              transition: "all 0.18s ease"
+                            }}
+                          >
+                            <div className="dish-title">
+                              <span>{dish.name}</span>
+                              {isSelected && <Check size={16} color="var(--gold-400)" />}
+                            </div>
+                            {isSelected && (
+                              <div style={{ fontSize: "0.68rem", color: "var(--gold-600)", fontWeight: 700, marginTop: "2px" }}>
+                                ✓ Selected (Click to remove)
+                              </div>
+                            )}
+                            {dish.description && <div className="dish-desc">{dish.description}</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* SPECIAL DESSERT MENU BOXES (Included in Package 3 & 4, or Upgradeable for ₱65/pax) */}
+                  <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px dashed var(--border-subtle)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <span style={{
+                          fontSize: "0.74rem",
+                          fontWeight: 800,
+                          letterSpacing: "0.06em",
+                          textTransform: "uppercase",
+                          color: "#92400e",
+                          background: "#fef3c7",
+                          border: "1px solid #fde68a",
+                          padding: "2px 8px",
+                          borderRadius: "4px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px"
+                        }}>
+                          ⭐ SPECIAL DESSERT
+                        </span>
+                        <span style={{
+                          fontSize: "0.72rem",
+                          color: courseAllowances.specDessertsCount > 0 ? "#166534" : "#b45309",
+                          fontWeight: 700,
+                          background: courseAllowances.specDessertsCount > 0 ? "#dcfce7" : "#fef3c7",
+                          padding: "2px 8px",
+                          borderRadius: "10px",
+                          border: courseAllowances.specDessertsCount > 0 ? "1px solid #86efac" : "1px solid #fcd34d"
+                        }}>
+                          {courseAllowances.specDessertsCount > 0 ? "⭐ Included in Package (₱0 Fee)" : "⭐ Upgrade Available (+₱65/pax)"}
+                        </span>
+                      </div>
+                      {selectedSpecialDessert && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span style={{ fontSize: "0.78rem", color: "#92400e", fontWeight: 700 }}>
+                            Selected: {selectedSpecialDessert} {courseAllowances.specDessertsCount > 0 ? "(Included)" : "(+₱65/pax)"} ✓
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedSpecialDessert("")}
+                            title="Remove Special Dessert"
+                            style={{
+                              background: "#fee2e2",
+                              border: "1px solid #fca5a5",
+                              borderRadius: "50%",
+                              width: "18px",
+                              height: "18px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              cursor: "pointer",
+                              color: "#b91c1c",
+                              fontSize: "10px",
+                              fontWeight: 800
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="dish-options-grid">
+                      {(dishesMenu.dessert || []).filter(d => d.tier === "special" || d.premium).map(dish => {
+                        const isSelected = selectedSpecialDessert === dish.name;
+                        return (
+                          <div
+                            key={dish.id}
+                            className={`dish-card-item special-dish-card ${isSelected ? "selected" : ""}`}
+                            onClick={() => handleSpecialDessertClick(dish)}
+                            style={{
+                              cursor: "pointer",
+                              borderLeft: isSelected ? "4px solid var(--gold-500)" : "3px solid #f59e0b",
+                              background: isSelected ? "var(--gold-50)" : "rgba(254, 243, 199, 0.2)",
+                              transition: "all 0.18s ease"
+                            }}
+                          >
+                            <div className="dish-title">
+                              <span>⭐ {dish.name}</span>
+                              {isSelected && <Check size={16} color="var(--gold-400)" />}
+                            </div>
+                            <div style={{ display: "inline-block", margin: "2px 0 4px 0" }}>
+                              <span style={{
+                                fontSize: "0.68rem",
+                                fontWeight: 700,
+                                color: courseAllowances.specDessertsCount > 0 ? "#166534" : "#b45309",
+                                background: courseAllowances.specDessertsCount > 0 ? "#dcfce7" : "#fef3c7",
+                                padding: "1px 6px",
+                                borderRadius: "10px",
+                                border: courseAllowances.specDessertsCount > 0 ? "1px solid #86efac" : "1px solid #fcd34d"
+                              }}>
+                                {courseAllowances.specDessertsCount > 0 ? "⭐ Included (₱0 Fee)" : "⭐ Upgrade (+₱65/pax)"}
+                              </span>
+                            </div>
+                            {isSelected && (
+                              <div style={{ fontSize: "0.68rem", color: "#b45309", fontWeight: 700 }}>
+                                ✓ Selected {courseAllowances.specDessertsCount > 0 ? "(Included)" : "(+₱65/pax Upgrade)"} (Click to deselect)
+                              </div>
+                            )}
+                            {dish.description && <div className="dish-desc">{dish.description}</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
               )}
             </div>
 
-            <div className="dish-options-grid">
-              {(dishesMenu.dessert || []).filter(d => d.tier === "special" || d.premium).map(dish => {
-                const isSelected = selectedSpecialDessert === dish.name;
-                return (
-                  <div
-                    key={dish.id}
-                    className={`dish-card-item special-dish-card ${isSelected ? "selected" : ""}`}
-                    onClick={() => handleSpecialDessertClick(dish)}
+            {/* Dedicated Section: Choice of Rice/Soup and Soda/Juice */}
+            <div className="card-section" id="section-rice-drinks" style={{ marginTop: "1.25rem" }}>
+              <div className="section-header">
+                <div className="section-title">
+                  <span style={{ fontSize: "1.25rem" }}>🍚</span>
+                  <span>Rice, Soup & Beverage Choices</span>
+                </div>
+                <span style={{
+                  fontSize: "0.75rem",
+                  fontWeight: 700,
+                  color: swapDeal !== "none" ? "#b45309" : "var(--text-muted)",
+                  background: swapDeal !== "none" ? "#fef3c7" : "transparent",
+                  padding: swapDeal !== "none" ? "2px 8px" : "0",
+                  borderRadius: "8px",
+                  border: swapDeal !== "none" ? "1px solid #fde68a" : "none"
+                }}>
+                  {swapDeal !== "none"
+                    ? `Waived (Swapped for +1 ${swapDeal === "extra_main" ? "Main Dish" : "Side Dish"})`
+                    : "Included in Package"}
+                </span>
+              </div>
+
+              {swapDeal !== "none" ? (
+                <div style={{
+                  background: swapDeal === "extra_main" ? "#fffaf5" : "#f0fdf4",
+                  border: swapDeal === "extra_main" ? "2px dashed #fdba74" : "2px dashed #86efac",
+                  borderRadius: "12px",
+                  padding: "1.75rem 1.5rem",
+                  textAlign: "center"
+                }}>
+                  <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>🔄</div>
+                  <div style={{ fontSize: "1.05rem", fontWeight: 800, color: swapDeal === "extra_main" ? "#9a3412" : "#166534" }}>
+                    Rice & Drinks Waived for +1 Extra {swapDeal === "extra_main" ? "Main Dish" : "Side Dish"}
+                  </div>
+                  <p style={{ margin: "6px auto 0 auto", maxWidth: "480px", fontSize: "0.82rem", color: swapDeal === "extra_main" ? "#7c2d12" : "#14532d", lineHeight: 1.45 }}>
+                    Under the active bargain deal, Rice/Soup and Beverage have been waived to grant your package an additional {swapDeal === "extra_main" ? "Main Course (+1 Viand)" : "Side Dish (+1 Pasta/Veg)"}.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setSwapDeal("none")}
                     style={{
-                      cursor: "pointer",
-                      borderLeft: isSelected ? "4px solid var(--gold-500)" : "3px solid #f59e0b",
-                      background: isSelected ? "var(--gold-50)" : "rgba(254, 243, 199, 0.2)",
-                      transition: "all 0.18s ease"
+                      marginTop: "1rem",
+                      background: "#ffffff",
+                      border: swapDeal === "extra_main" ? "1px solid #fed7aa" : "1px solid #bbf7d0",
+                      color: swapDeal === "extra_main" ? "#c2410c" : "#15803d",
+                      fontWeight: 700,
+                      fontSize: "0.78rem",
+                      padding: "6px 14px",
+                      borderRadius: "8px",
+                      cursor: "pointer"
                     }}
                   >
-                    <div className="dish-title">
-                      <span>⭐ {dish.name}</span>
-                      {isSelected && <Check size={16} color="var(--gold-400)" />}
-                    </div>
-                    <div style={{ display: "inline-block", margin: "2px 0 4px 0" }}>
-                      <span style={{ 
-                        fontSize: "0.68rem", 
-                        fontWeight: 700, 
-                        color: courseAllowances.specDessertsCount > 0 ? "#166534" : "#b45309", 
-                        background: courseAllowances.specDessertsCount > 0 ? "#dcfce7" : "#fef3c7", 
-                        padding: "1px 6px", 
-                        borderRadius: "10px", 
-                        border: courseAllowances.specDessertsCount > 0 ? "1px solid #86efac" : "1px solid #fcd34d" 
-                      }}>
-                        {courseAllowances.specDessertsCount > 0 ? "⭐ Included (₱0 Fee)" : "⭐ Upgrade (+₱65/pax)"}
-                      </span>
-                    </div>
-                    {isSelected && (
-                      <div style={{ fontSize: "0.68rem", color: "#b45309", fontWeight: 700 }}>
-                        ✓ Selected {courseAllowances.specDessertsCount > 0 ? "(Included)" : "(+₱65/pax Upgrade)"} (Click to deselect)
-                      </div>
-                    )}
-                    {dish.description && <div className="dish-desc">{dish.description}</div>}
+                    Restore Rice & Drinks (Switch to Standard Inclusions)
+                  </button>
+                </div>
+              ) : (
+                <div className="form-grid-2">
+                  <div className="form-group">
+                    <label className="form-label">🍚 Choice of: Steamed Rice or Hot Soup *</label>
+                    <select
+                      className="form-select"
+                      value={riceOrSoup}
+                      onChange={(e) => setRiceOrSoup(e.target.value)}
+                    >
+                      <optgroup label="── RICE CHOICES ──">
+                        {(dishesMenu.rice || []).filter(r => r.name.toLowerCase().includes("rice") || r.name.toLowerCase().includes("paella") || r.name.toLowerCase().includes("valenciana")).map(r => (
+                          <option key={r.id} value={r.name}>{r.tier === "special" ? "⭐ " : ""}{r.name}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="── SOUP CHOICES ──">
+                        {(dishesMenu.rice || []).filter(r => !r.name.toLowerCase().includes("rice") && !r.name.toLowerCase().includes("paella") && !r.name.toLowerCase().includes("valenciana")).map(r => (
+                          <option key={r.id} value={r.name}>{r.tier === "special" ? "⭐ " : ""}{r.name}</option>
+                        ))}
+                      </optgroup>
+                    </select>
+                    <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: "2px", display: "block" }}>
+                      Select your buffet starch: Plain Steamed Jasmine Rice, Garlic Rice, or Savory Soup
+                    </span>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-            </>
-          )}
-        </div>
 
-        {/* Dedicated Section: Choice of Rice/Soup and Soda/Juice */}
-        <div className="card-section" id="section-rice-drinks" style={{ marginTop: "1.25rem" }}>
-          <div className="section-header">
-            <div className="section-title">
-              <span style={{ fontSize: "1.25rem" }}>🍚</span>
-              <span>Rice, Soup & Beverage Choices</span>
+                  <div className="form-group">
+                    <label className="form-label">🍹 Choice of: Soda or Juice (Bottomless) *</label>
+                    <select
+                      className="form-select"
+                      value={beverage}
+                      onChange={(e) => setBeverage(e.target.value)}
+                    >
+                      {(dishesMenu.drinks || []).map(dr => (
+                        <option key={dr.id} value={dr.name}>{dr.name}</option>
+                      ))}
+                    </select>
+                    <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: "2px", display: "block" }}>
+                      Served ice-cold throughout the 4-hour banquet service
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
-            <span style={{ 
-              fontSize: "0.75rem", 
-              fontWeight: 700,
-              color: swapDeal !== "none" ? "#b45309" : "var(--text-muted)",
-              background: swapDeal !== "none" ? "#fef3c7" : "transparent",
-              padding: swapDeal !== "none" ? "2px 8px" : "0",
-              borderRadius: "8px",
-              border: swapDeal !== "none" ? "1px solid #fde68a" : "none"
-            }}>
-              {swapDeal !== "none" 
-                ? `Waived (Swapped for +1 ${swapDeal === "extra_main" ? "Main Dish" : "Side Dish"})` 
-                : "Included in Package"}
-            </span>
-          </div>
-
-          {swapDeal !== "none" ? (
-            <div style={{
-              background: swapDeal === "extra_main" ? "#fffaf5" : "#f0fdf4",
-              border: swapDeal === "extra_main" ? "2px dashed #fdba74" : "2px dashed #86efac",
-              borderRadius: "12px",
-              padding: "1.75rem 1.5rem",
-              textAlign: "center"
-            }}>
-              <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>🔄</div>
-              <div style={{ fontSize: "1.05rem", fontWeight: 800, color: swapDeal === "extra_main" ? "#9a3412" : "#166534" }}>
-                Rice & Drinks Waived for +1 Extra {swapDeal === "extra_main" ? "Main Dish" : "Side Dish"}
-              </div>
-              <p style={{ margin: "6px auto 0 auto", maxWidth: "480px", fontSize: "0.82rem", color: swapDeal === "extra_main" ? "#7c2d12" : "#14532d", lineHeight: 1.45 }}>
-                Under the active bargain deal, Rice/Soup and Beverage have been waived to grant your package an additional {swapDeal === "extra_main" ? "Main Course (+1 Viand)" : "Side Dish (+1 Pasta/Veg)"}.
-              </p>
-              <button
-                type="button"
-                onClick={() => setSwapDeal("none")}
-                style={{
-                  marginTop: "1rem",
-                  background: "#ffffff",
-                  border: swapDeal === "extra_main" ? "1px solid #fed7aa" : "1px solid #bbf7d0",
-                  color: swapDeal === "extra_main" ? "#c2410c" : "#15803d",
-                  fontWeight: 700,
-                  fontSize: "0.78rem",
-                  padding: "6px 14px",
-                  borderRadius: "8px",
-                  cursor: "pointer"
-                }}
-              >
-                Restore Rice & Drinks (Switch to Standard Inclusions)
-              </button>
-            </div>
-          ) : (
-            <div className="form-grid-2">
-              <div className="form-group">
-                <label className="form-label">🍚 Choice of: Steamed Rice or Hot Soup *</label>
-                <select
-                  className="form-select"
-                  value={riceOrSoup}
-                  onChange={(e) => setRiceOrSoup(e.target.value)}
-                >
-                  <optgroup label="── RICE CHOICES ──">
-                    {(dishesMenu.rice || []).filter(r => r.name.toLowerCase().includes("rice") || r.name.toLowerCase().includes("paella") || r.name.toLowerCase().includes("valenciana")).map(r => (
-                      <option key={r.id} value={r.name}>{r.tier === "special" ? "⭐ " : ""}{r.name}</option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="── SOUP CHOICES ──">
-                    {(dishesMenu.rice || []).filter(r => !r.name.toLowerCase().includes("rice") && !r.name.toLowerCase().includes("paella") && !r.name.toLowerCase().includes("valenciana")).map(r => (
-                      <option key={r.id} value={r.name}>{r.tier === "special" ? "⭐ " : ""}{r.name}</option>
-                    ))}
-                  </optgroup>
-                </select>
-                <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: "2px", display: "block" }}>
-                  Select your buffet starch: Plain Steamed Jasmine Rice, Garlic Rice, or Savory Soup
-                </span>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">🍹 Choice of: Soda or Juice (Bottomless) *</label>
-                <select
-                  className="form-select"
-                  value={beverage}
-                  onChange={(e) => setBeverage(e.target.value)}
-                >
-                  {(dishesMenu.drinks || []).map(dr => (
-                    <option key={dr.id} value={dr.name}>{dr.name}</option>
-                  ))}
-                </select>
-                <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: "2px", display: "block" }}>
-                  Served ice-cold throughout the 4-hour banquet service
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
+          </>
+        )}
 
         {/* Step 4: Special Event Add-ons & Stations */}
         <div className="card-section">
@@ -2389,68 +4341,192 @@ export default function PricingCalculator({
 
         {/* Breakdown Items */}
         <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-          <div className="line-item-row">
-            <span>{currentPkg.name}</span>
-            <span className="val">₱{foodTotal.toLocaleString()}</span>
-          </div>
-          <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "-4px" }}>
-            ₱{currentPkg.pricePerPax} × {pax} guests ({maxMainDishes} Main Dishes)
-          </div>
-
-          {/* Selected Main Dishes Box in Summary */}
-          <div style={{ background: "var(--surface)", border: "1px solid var(--border-subtle)", borderRadius: "8px", padding: "8px 10px", marginTop: "0.4rem" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.78rem", fontWeight: 700, color: "var(--text-primary)", marginBottom: "4px" }}>
-              <span>Main Dishes ({selectedMainDishes.length}/{maxMainDishes}):</span>
-              <span style={{ color: selectedMainDishes.length === maxMainDishes ? "#059669" : "#d97706" }}>
-                {selectedMainDishes.length === maxMainDishes ? "Complete ✓" : `${maxMainDishes - selectedMainDishes.length} needed`}
-              </span>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-              {selectedMainDishes.map((name, i) => (
-                <div key={i} style={{ fontSize: "0.72rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "4px" }}>
-                  <span>•</span>
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
-                </div>
-              ))}
-            </div>
-            <div style={{ marginTop: "6px", paddingTop: "6px", borderTop: "1px dashed var(--border-subtle)", fontSize: "0.72rem", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "3px" }}>
-              {swapDeal !== "none" && (
-                <div style={{ color: "#b45309", fontWeight: 700, background: "#fef3c7", padding: "2px 6px", borderRadius: "4px" }}>
-                  🔄 Swap: {swapDeal === "extra_main" ? "Waived Rice, Drinks & Dessert ➔ +1 Main" : "Waived Rice & Drinks ➔ +1 Side"}
-                </div>
-              )}
-              <div>🥗 <strong>Sides ({selectedSides.length}/{courseAllowances.regSidesCount}):</strong> {selectedSides.length > 0 ? selectedSides.join(" • ") : "None selected"}{selectedSpecialSide ? ` • ⭐ ${selectedSpecialSide}${courseAllowances.specSidesCount > 0 ? " (Included)" : " (+₱65/pax)"}` : ""}</div>
-              {swapDeal === "extra_main" ? (
-                <div>🍮 <strong>Desserts:</strong> <span style={{ fontStyle: "italic", color: "#64748b" }}>Waived (Swapped for +1 Main)</span></div>
-              ) : (
-                <div>🍮 <strong>Desserts ({selectedDessertsList.length}/{courseAllowances.regDessertsCount}):</strong> {selectedDessertsList.length > 0 ? selectedDessertsList.join(" • ") : "None selected"}{selectedSpecialDessert ? ` • ⭐ ${selectedSpecialDessert}${courseAllowances.specDessertsCount > 0 ? " (Included)" : " (+₱65/pax)"}` : ""}</div>
-              )}
-              {swapDeal !== "none" ? (
-                <div>🍚🍹 <strong>Rice & Beverage:</strong> <span style={{ fontStyle: "italic", color: "#64748b" }}>Waived (Swapped)</span></div>
-              ) : (
-                <>
-                  <div>🍚 <strong>Rice/Soup:</strong> {riceOrSoup}</div>
-                  <div>🍹 <strong>Beverage:</strong> {beverage}</div>
-                </>
-              )}
-            </div>
-          </div>
-
-          {specialDishesUpgradeTotal > 0 && (
-            <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "8px", padding: "8px 10px", marginTop: "0.4rem" }}>
-              <div className="line-item-row" style={{ color: "#92400e", fontWeight: 700 }}>
-                <span>⭐ Special Dish Upgrades ({specialDishesCount})</span>
-                <span className="val" style={{ color: "#b45309" }}>+₱{specialDishesUpgradeTotal.toLocaleString()}</span>
+          {isConference ? (
+            <>
+              <div className="line-item-row">
+                <span style={{ fontWeight: 800, color: "#1e3a8a" }}>Government Conference ({confDaysNum} Days)</span>
+                <span className="val" style={{ color: "#1e40af", fontWeight: 800 }}>₱{foodTotal.toLocaleString()}</span>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "3px", marginTop: "4px" }}>
-                {selectedSpecialDishesList.map(s => (
-                  <div key={s.name} style={{ fontSize: "0.72rem", color: "#78350f", display: "flex", justifyContent: "space-between" }}>
-                    <span>• {s.name} (+₱{s.upgradePrice}/pax)</span>
-                    <span style={{ fontWeight: 600 }}>+₱{(s.upgradePrice * pax).toLocaleString()}</span>
+              <div style={{ fontSize: "0.72rem", color: "#2563eb", marginTop: "-4px" }}>
+                ₱1,290 / pax / day × {pax} guests × {confDaysNum} {confDaysNum === 1 ? "day" : "days"} (4 Meals Daily)
+              </div>
+
+              {/* 4-Meal Conference Schedule Summary Box */}
+              <div style={{ background: "#f8fafc", border: "1px solid #93c5fd", borderRadius: "10px", padding: "10px", marginTop: "0.4rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.78rem", fontWeight: 800, color: "#1e3a8a", marginBottom: "6px" }}>
+                  <span>Daily 4-Meal Schedule</span>
+                  <span style={{ color: "#059669" }}>Allotted ✓</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "0.72rem", color: "#334155" }}>
+                  <div>
+                    <strong style={{ color: "#1e40af" }}>🥪 09:30 AM (AM Snacks):</strong>
+                    <div style={{ paddingLeft: "8px", color: "#475569" }}>• {amSnackDish} + {amSnackDrink}</div>
                   </div>
-                ))}
+                  <div>
+                    <strong style={{ color: "#166534" }}>🍱 12:00 PM (Lunch - Pkg 1):</strong>
+                    <div style={{ paddingLeft: "8px", color: "#475569" }}>
+                      • Mains: {selectedMainDishes.slice(0, 3).join(", ") || "3 regular viands"}<br />
+                      • Side: {selectedSides[0] || "Pasta/Veg"} • {riceOrSoup} • {selectedDessertsList[0] || "Dessert"} • {beverage}
+                    </div>
+                  </div>
+                  <div>
+                    <strong style={{ color: "#9a3412" }}>🍝 03:00 PM (PM Snacks):</strong>
+                    <div style={{ paddingLeft: "8px", color: "#475569" }}>• {pmSnackDish} + {pmSnackDrink}</div>
+                  </div>
+                  <div>
+                    <strong style={{ color: "#5b21b6" }}>🍽️ 06:30 PM (Dinner - Pkg 2):</strong>
+                    <div style={{ paddingLeft: "8px", color: "#475569" }}>
+                      • Mains: {dinnerMainDishes.join(", ") || "4 regular viands"}<br />
+                      • Side: {dinnerSide} • {dinnerRice} • {dinnerDessert} • {dinnerDrink}
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+            </>
+          ) : isPicaPica ? (
+            <>
+              <div className="line-item-row">
+                <span style={{ fontWeight: 700 }}>{currentPkg.name}</span>
+                <span className="val" style={{ fontWeight: 800 }}>₱{foodTotal.toLocaleString()}</span>
+              </div>
+              <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "-4px" }}>
+                ₱{currentPkg.pricePerPax} × {pax} guests (Min 50 Pax • Cocktail Setup)
+              </div>
+
+              {/* Pica Pica Selected Items Summary */}
+              <div style={{ background: "var(--surface)", border: "1px solid var(--border-subtle)", borderRadius: "8px", padding: "8px 10px", marginTop: "0.4rem" }}>
+                <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-primary)", marginBottom: "4px" }}>
+                  🍢 Cocktail Station Inclusions:
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "3px", fontSize: "0.72rem", color: "var(--text-secondary)" }}>
+                  <div>🍔 <strong>Sliders ({selectedSliders.length}/{picaAllowances.sliders}):</strong> {selectedSliders.join(" • ") || "None"}</div>
+                  <div>🥪 <strong>Canapés ({selectedCanapes.length}/{picaAllowances.canapes}):</strong> {selectedCanapes.join(" • ") || "None"}</div>
+                  <div>🍗 <strong>Finger Food ({selectedFingerFoods.length}/{picaAllowances.fingerFood}):</strong> {selectedFingerFoods.join(" • ") || "None"}</div>
+                  <div>🍮 <strong>Desserts ({selectedMiniDesserts.length}/{picaAllowances.miniDesserts}):</strong> {selectedMiniDesserts.join(" • ") || "None"}</div>
+                  {picaAllowances.hasDiyStation && (
+                    <div style={{ color: "#1e40af", fontWeight: 600 }}>🎪 <strong>Station:</strong> {picaDiyStation} + Kakanins</div>
+                  )}
+                  <div>🥤 <strong>Drink:</strong> {picaBeverage}</div>
+                </div>
+              </div>
+
+              {specialDishesUpgradeTotal > 0 && (
+                <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "8px", padding: "8px 10px", marginTop: "0.4rem" }}>
+                  <div className="line-item-row" style={{ color: "#92400e", fontWeight: 700 }}>
+                    <span>⭐ Special Upgrades ({specialDishesCount})</span>
+                    <span className="val" style={{ color: "#b45309" }}>+₱{specialDishesUpgradeTotal.toLocaleString()}</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "3px", marginTop: "4px" }}>
+                    {selectedSpecialDishesList.map(s => (
+                      <div key={s.name} style={{ fontSize: "0.72rem", color: "#78350f", display: "flex", justifyContent: "space-between" }}>
+                        <span>• {s.name} (+₱{s.upgradePrice}/pax)</span>
+                        <span style={{ fontWeight: 600 }}>+₱{(s.upgradePrice * pax).toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : isGrazingTable ? (
+            <>
+              <div className="line-item-row">
+                <span style={{ fontWeight: 700 }}>{currentPkg.name}</span>
+                <span className="val" style={{ fontWeight: 800 }}>₱{foodTotal.toLocaleString()}</span>
+              </div>
+              <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "-4px" }}>
+                Fixed Tier Rate: ₱{currentPkg.price?.toLocaleString()} for {currentPkg.paxRange || "100-150 PAX"}
+              </div>
+
+              {/* Grazing Table Selected Inclusions */}
+              <div style={{ background: "var(--surface)", border: "1px solid var(--border-subtle)", borderRadius: "8px", padding: "8px 10px", marginTop: "0.4rem" }}>
+                <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-primary)", marginBottom: "4px" }}>
+                  🧀 Grazing Table Spread Highlights:
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "3px", fontSize: "0.72rem", color: "var(--text-secondary)" }}>
+                  <div>• 5kg Cured Meats & 5 Imported Cheeses</div>
+                  <div>• 5 Big Fruit Platters & Hungarian Sausage</div>
+                  <div>🥪 <strong>Canapés ({selectedCanapes.length}/5):</strong> {selectedCanapes.join(" • ")}</div>
+                  <div>🍔 <strong>Sliders ({selectedSliders.length}/4):</strong> {selectedSliders.join(" • ")}</div>
+                  {currentPkg.name?.includes("Premium") && (
+                    <div style={{ color: "#5b21b6", fontWeight: 600 }}>🍮 <strong>Dessert Shots Included</strong></div>
+                  )}
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="line-item-row">
+                <span style={{ fontWeight: 700 }}>{currentPkg.name}</span>
+                <span className="val" style={{ fontWeight: 800 }}>₱{foodTotal.toLocaleString()}</span>
+              </div>
+              <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "-4px" }}>
+                {isFoodTray && currentPkg.price
+                  ? `Fixed Batch Rate: ₱${currentPkg.price.toLocaleString()} for ${currentPkg.paxRange || `${currentPkg.minPax}-${currentPkg.maxPax} PAX`} (${maxMainDishes} Mains + ${courseAllowances.regSidesCount} Sides)`
+                  : `₱${currentPkg.pricePerPax} × ${pax} guests (${maxMainDishes} Main Dishes)`}
+              </div>
+
+              {/* Selected Main Dishes Box in Summary */}
+              <div style={{ background: "var(--surface)", border: "1px solid var(--border-subtle)", borderRadius: "8px", padding: "8px 10px", marginTop: "0.4rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.78rem", fontWeight: 700, color: "var(--text-primary)", marginBottom: "4px" }}>
+                  <span>{isFoodTray ? "Viands in Trays" : "Main Dishes"} ({selectedMainDishes.length}/{maxMainDishes}):</span>
+                  <span style={{ color: selectedMainDishes.length === maxMainDishes ? "#059669" : "#d97706" }}>
+                    {selectedMainDishes.length === maxMainDishes ? "Complete ✓" : `${maxMainDishes - selectedMainDishes.length} needed`}
+                  </span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                  {selectedMainDishes.map((name, i) => (
+                    <div key={i} style={{ fontSize: "0.72rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "4px" }}>
+                      <span>•</span>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ marginTop: "6px", paddingTop: "6px", borderTop: "1px dashed var(--border-subtle)", fontSize: "0.72rem", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "3px" }}>
+                  {swapDeal !== "none" && !isFoodTray && (
+                    <div style={{ color: "#b45309", fontWeight: 700, background: "#fef3c7", padding: "2px 6px", borderRadius: "4px" }}>
+                      🔄 Swap: {swapDeal === "extra_main" ? "Waived Rice, Drinks & Dessert ➔ +1 Main" : "Waived Rice & Drinks ➔ +1 Side"}
+                    </div>
+                  )}
+                  {courseAllowances.regSidesCount > 0 && (
+                    <div>🥗 <strong>Sides ({selectedSides.length}/{courseAllowances.regSidesCount}):</strong> {selectedSides.length > 0 ? selectedSides.join(" • ") : "None selected"}{selectedSpecialSide ? ` • ⭐ ${selectedSpecialSide}${courseAllowances.specSidesCount > 0 ? " (Included)" : " (+₱65/pax)"}` : ""}</div>
+                  )}
+                  {!isFoodTray && (
+                    <>
+                      {swapDeal === "extra_main" ? (
+                        <div>🍮 <strong>Desserts:</strong> <span style={{ fontStyle: "italic", color: "#64748b" }}>Waived (Swapped for +1 Main)</span></div>
+                      ) : (
+                        <div>🍮 <strong>Desserts ({selectedDessertsList.length}/{courseAllowances.regDessertsCount}):</strong> {selectedDessertsList.length > 0 ? selectedDessertsList.join(" • ") : "None selected"}{selectedSpecialDessert ? ` • ⭐ ${selectedSpecialDessert}${courseAllowances.specDessertsCount > 0 ? " (Included)" : " (+₱65/pax)"}` : ""}</div>
+                      )}
+                      {swapDeal !== "none" ? (
+                        <div>🍚🍹 <strong>Rice & Beverage:</strong> <span style={{ fontStyle: "italic", color: "#64748b" }}>Waived (Swapped)</span></div>
+                      ) : (
+                        <>
+                          <div>🍚 <strong>Rice/Soup:</strong> {riceOrSoup}</div>
+                          <div>🍹 <strong>Beverage:</strong> {beverage}</div>
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {specialDishesUpgradeTotal > 0 && (
+                <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "8px", padding: "8px 10px", marginTop: "0.4rem" }}>
+                  <div className="line-item-row" style={{ color: "#92400e", fontWeight: 700 }}>
+                    <span>⭐ Special Dish Upgrades ({specialDishesCount})</span>
+                    <span className="val" style={{ color: "#b45309" }}>+₱{specialDishesUpgradeTotal.toLocaleString()}</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "3px", marginTop: "4px" }}>
+                    {selectedSpecialDishesList.map(s => (
+                      <div key={s.name} style={{ fontSize: "0.72rem", color: "#78350f", display: "flex", justifyContent: "space-between" }}>
+                        <span>• {s.name} (+₱{s.upgradePrice}/pax)</span>
+                        <span style={{ fontWeight: 600 }}>+₱{(s.upgradePrice * pax).toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {addonsList.length > 0 && (
@@ -2500,13 +4576,18 @@ export default function PricingCalculator({
         <div className="grand-total-box">
           <div className="grand-total-label">Balance Grand Total</div>
           <div className="grand-total-price">₱{grandTotal.toLocaleString()}</div>
-          <div className="per-pax-rate">Effective Rate: <strong>₱{effectivePerPax.toLocaleString()} / pax</strong></div>
+          <div className="per-pax-rate">Effective Rate: <strong>₱{effectivePerPax.toLocaleString()} / pax {isConference ? "/ day" : ""}</strong></div>
+          {isConference && (
+            <div style={{ marginTop: "8px", paddingTop: "6px", borderTop: "1px dashed rgba(255,255,255,0.3)", fontSize: "0.74rem", color: "#fef3c7", lineHeight: 1.35 }}>
+              🏛️ <strong>Government Billing Terms:</strong> ₱0 Advance Downpayment Required. 100% backed by Agency Purchase Order (PO/PR: {agencyPoNumber || "On File"}), settled via LDDAP-ADA Net 30/45 Days.
+            </div>
+          )}
         </div>
 
         {/* Actions */}
         <div className="action-btn-group" style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
           {validationError && (
-            <div 
+            <div
               onClick={() => {
                 const missing = getMissingInclusions();
                 if (missing.length > 0) {
@@ -2516,13 +4597,13 @@ export default function PricingCalculator({
                   });
                 }
               }}
-              style={{ 
-                background: "#fef2f2", 
-                border: "1px solid #fecaca", 
-                color: "#991b1b", 
-                padding: "0.6rem 0.85rem", 
-                borderRadius: "8px", 
-                fontSize: "0.8rem", 
+              style={{
+                background: "#fef2f2",
+                border: "1px solid #fecaca",
+                color: "#991b1b",
+                padding: "0.6rem 0.85rem",
+                borderRadius: "8px",
+                fontSize: "0.8rem",
                 fontWeight: 600,
                 cursor: "pointer",
                 display: "flex",
@@ -2543,12 +4624,12 @@ export default function PricingCalculator({
           <button
             type="button"
             className="btn-primary"
-            style={{ 
-              width: "100%", 
-              padding: "0.95rem 1.25rem", 
-              fontSize: "1.05rem", 
-              fontWeight: 800, 
-              background: "var(--gold-gradient)", 
+            style={{
+              width: "100%",
+              padding: "0.95rem 1.25rem",
+              fontSize: "1.05rem",
+              fontWeight: 800,
+              background: "var(--gold-gradient)",
               boxShadow: "0 10px 15px -3px rgba(217, 119, 6, 0.4)",
               display: "flex",
               alignItems: "center",
@@ -2626,7 +4707,7 @@ export default function PricingCalculator({
             </p>
 
             <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center" }}>
-              <button 
+              <button
                 type="button"
                 className="btn-primary"
                 onClick={() => {
@@ -2637,7 +4718,7 @@ export default function PricingCalculator({
                 <Printer size={16} />
                 <span>View & Print Contract</span>
               </button>
-              <button 
+              <button
                 type="button"
                 className="btn-secondary"
                 onClick={() => setBookingSuccess(null)}
@@ -2980,7 +5061,7 @@ export default function PricingCalculator({
               >
                 Close & Review
               </button>
-              
+
               {missingInclusionsModal.items.length > 0 && (
                 <button
                   type="button"

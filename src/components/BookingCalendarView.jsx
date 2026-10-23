@@ -18,7 +18,7 @@ import {
   Building2,
   CalendarDays
 } from "lucide-react";
-import { MAX_CONFIRMED_BOOKINGS_PER_DAY } from "../utils/bookingUtils";
+import { MAX_CONFIRMED_BOOKINGS_PER_DAY, formatTime12Hour } from "../utils/bookingUtils";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -684,7 +684,7 @@ export default function BookingCalendarView({
                           gap: "4px",
                           cursor: "pointer"
                         }}
-                        title={`${booking.eventTime || "TBA"} • ${booking.clientName} (${booking.pax} Pax) • ${booking.status}`}
+                        title={`${formatTime12Hour(booking.eventTime)} • ${booking.clientName} (${booking.pax} Pax) • ${booking.status}`}
                       >
                         <span style={{
                           width: "5px",
@@ -694,7 +694,7 @@ export default function BookingCalendarView({
                           flexShrink: 0
                         }} />
                         <span style={{ fontWeight: 800, fontSize: "0.65rem", flexShrink: 0 }}>
-                          {booking.eventTime ? booking.eventTime.slice(0, 5) : "Event"}:
+                          {booking.eventTime ? formatTime12Hour(booking.eventTime) : "Event"}:
                         </span>
                         <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
                           {booking.clientName || "Client"}
@@ -891,7 +891,7 @@ export default function BookingCalendarView({
                         {/* Event Card Header */}
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.5rem", marginBottom: "0.5rem" }}>
                           <div>
-                            <div style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "0.45rem", flexWrap: "wrap" }}>
                               <span style={{
                                 fontSize: "0.68rem",
                                 background: statusStyle.bg,
@@ -903,6 +903,19 @@ export default function BookingCalendarView({
                               }}>
                                 {b.status}
                               </span>
+                              {b.serviceType === "food_tray" || b.isFoodTray || b.packageId?.startsWith("food_tray") ? (
+                                <span style={{ fontSize: "0.65rem", background: "var(--gold-100)", color: "var(--gold-800)", padding: "1px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                                  🍱 Food Tray
+                                </span>
+                              ) : b.serviceType === "pica_pica" || b.isPicaPica || b.packageId?.startsWith("pica_pica") ? (
+                                <span style={{ fontSize: "0.65rem", background: "#fdf2f8", color: "#9d174d", border: "1px solid #fbcfe8", padding: "1px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                                  🍢 Pica Pica
+                                </span>
+                              ) : b.serviceType === "grazing_table" || b.isGrazingTable || b.packageId?.startsWith("grazing_") ? (
+                                <span style={{ fontSize: "0.65rem", background: "#fffbeb", color: "#b45309", border: "1px solid #fde68a", padding: "1px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                                  🧀 Grazing Table
+                                </span>
+                              ) : null}
                               {b.bookingReference ? (
                                 <span style={{ fontSize: "0.72rem", fontFamily: "monospace", color: "#047857", fontWeight: 700 }}>
                                   {b.bookingReference}
@@ -916,6 +929,11 @@ export default function BookingCalendarView({
                             <h3 style={{ fontSize: "1rem", fontWeight: 800, color: "var(--text-primary)", marginTop: "4px", margin: "4px 0 0" }}>
                               {b.clientName}
                             </h3>
+                            {b.packageName && (
+                              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                                {b.packageName}
+                              </div>
+                            )}
                           </div>
 
                           <div style={{ textAlign: "right" }}>
@@ -946,7 +964,7 @@ export default function BookingCalendarView({
                         }}>
                           <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
                             <Clock size={14} color="var(--text-muted)" />
-                            <span>Serving: <strong>{b.eventTime || "TBA"}</strong></span>
+                            <span>Serving: <strong>{formatTime12Hour(b.eventTime)}</strong></span>
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
                             <Users size={14} color="var(--text-muted)" />
@@ -985,14 +1003,21 @@ export default function BookingCalendarView({
                             <button
                               type="button"
                               className="btn-secondary"
-                              style={{ padding: "0.35rem 0.65rem", fontSize: "0.74rem", borderColor: "var(--border-gold)", color: "var(--gold-600)" }}
+                              style={{ 
+                                padding: "0.35rem 0.65rem", 
+                                fontSize: "0.74rem", 
+                                borderColor: b.status === "Completed" ? "#d8b4fe" : "var(--border-gold)", 
+                                color: b.status === "Completed" ? "#7e22ce" : "var(--gold-600)",
+                                background: b.status === "Completed" ? "#faf5ff" : "inherit"
+                              }}
+                              title={b.status === "Completed" ? "View Payment Details (Locked - Completed)" : "Payment / Deposit Details"}
                               onClick={() => {
-                                onOpenPaymentDetails(b, b.status === "Ongoing" ? "ongoing" : "deposit");
+                                onOpenPaymentDetails(b, b.status === "Ongoing" || b.status === "Completed" ? "ongoing" : "deposit");
                                 setSelectedDay(null);
                               }}
                             >
                               <CreditCard size={13} />
-                              <span>Payment / Deposit</span>
+                              <span>{b.status === "Completed" ? "View Payment (Locked)" : "Payment / Deposit"}</span>
                             </button>
                           )}
 

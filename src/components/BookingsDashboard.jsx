@@ -29,7 +29,8 @@ import {
   MAX_CONFIRMED_BOOKINGS_PER_DAY,
   getConfirmedBookingsCountForDate,
   getRemainingSlotsForDate,
-  isDateFullyBooked
+  isDateFullyBooked,
+  formatTime12Hour
 } from "../utils/bookingUtils";
 
 /**
@@ -241,6 +242,7 @@ export default function BookingsDashboard({
         (q.bookingReference && q.bookingReference.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (q.venueName && q.venueName.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (q.packageName && q.packageName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (q.serviceType && q.serviceType.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (q.companyName && q.companyName.toLowerCase().includes(searchTerm.toLowerCase()));
       return matchesStatus && matchesDate && matchesSearch;
     });
@@ -1192,12 +1194,33 @@ export default function BookingsDashboard({
                               )}
                             </div>
                             <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                              {q.eventTime ? `${q.eventTime} • ` : ""}{q.venueName || "Venue TBA"}
+                              {q.eventTime ? `${formatTime12Hour(q.eventTime)} • ` : ""}{q.venueName || "Venue TBA"}
                             </div>
                           </td>
                           <td>
-                            <div style={{ fontWeight: 600 }}>{q.packageName}</div>
-                            <div style={{ fontSize: "0.75rem", color: "var(--gold-600)", fontWeight: 600 }}>{q.pax} Guests</div>
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                              <span style={{ fontWeight: 600 }}>{q.packageName}</span>
+                              {q.serviceType === "food_tray" || q.isFoodTray || q.packageId?.startsWith("food_tray") ? (
+                                <span style={{ fontSize: "0.65rem", background: "var(--gold-100)", color: "var(--gold-800)", padding: "1px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                                  🍱 Food Tray
+                                </span>
+                              ) : q.serviceType === "pica_pica" || q.isPicaPica || q.packageId?.startsWith("pica_pica") ? (
+                                <span style={{ fontSize: "0.65rem", background: "#fdf2f8", color: "#9d174d", border: "1px solid #fbcfe8", padding: "1px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                                  🍢 Pica Pica
+                                </span>
+                              ) : q.serviceType === "grazing_table" || q.isGrazingTable || q.packageId?.startsWith("grazing_") ? (
+                                <span style={{ fontSize: "0.65rem", background: "#fffbeb", color: "#b45309", border: "1px solid #fde68a", padding: "1px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                                  🧀 Grazing Table
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: "0.65rem", background: "#f1f5f9", color: "#475569", padding: "1px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                                  🍽️ Buffet
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: "0.75rem", color: "var(--gold-600)", fontWeight: 600 }}>
+                              {q.pax} Guests {q.paxRange ? `• ${q.paxRange}` : ""}
+                            </div>
                           </td>
                           <td>
                             <div style={{ fontWeight: 800, fontFamily: "monospace", color: "var(--text-primary)" }}>
@@ -1219,7 +1242,9 @@ export default function BookingsDashboard({
                                     gap: "3px",
                                     cursor: onOpenPaymentDetails ? "pointer" : "default"
                                   }}
-                                  title={`Fully Paid via ${q.finalPaymentMethod || q.depositPaymentMethod || "Cash"}. Click to view details.`}
+                                  title={q.status === "Completed" 
+                                    ? `Fully Paid via ${q.finalPaymentMethod || q.depositPaymentMethod || "Cash"} (Locked - Completed). Click to view details.` 
+                                    : `Fully Paid via ${q.finalPaymentMethod || q.depositPaymentMethod || "Cash"}. Click to view details.`}
                                   onClick={() => onOpenPaymentDetails && onOpenPaymentDetails(q, "ongoing")}
                                 >
                                   ✓ Fully Paid ({q.finalPaymentMethod || q.depositPaymentMethod || "Cash"})
@@ -1242,7 +1267,9 @@ export default function BookingsDashboard({
                                     width: "fit-content",
                                     cursor: onOpenPaymentDetails ? "pointer" : "default"
                                   }}
-                                  title={`Deposit ₱${Number(q.depositAmount).toLocaleString()} via ${q.depositPaymentMethod || "Cash"}${q.depositNotes ? ` - "${q.depositNotes}"` : ""}. Click to view details.`}
+                                  title={q.status === "Completed"
+                                    ? `Deposit ₱${Number(q.depositAmount).toLocaleString()} via ${q.depositPaymentMethod || "Cash"} (Locked - Completed). Click to view details.`
+                                    : `Deposit ₱${Number(q.depositAmount).toLocaleString()} via ${q.depositPaymentMethod || "Cash"}${q.depositNotes ? ` - "${q.depositNotes}"` : ""}. Click to view details.`}
                                   onClick={() => onOpenPaymentDetails && onOpenPaymentDetails(q, "deposit")}
                                 >
                                   DP: ₱{Number(q.depositAmount).toLocaleString()} ({q.depositPaymentMethod || "Cash"})
@@ -1354,12 +1381,17 @@ export default function BookingsDashboard({
                           </td>
                           <td style={{ textAlign: "right" }}>
                             <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
-                              {(q.depositAmount || q.isFullyPaid || q.status === "Confirmed" || q.status === "Ongoing") && (
+                              {(q.depositAmount || q.isFullyPaid || q.status === "Confirmed" || q.status === "Ongoing" || q.status === "Completed") && (
                                 <button
                                   className="btn-secondary"
-                                  style={{ padding: "0.4rem 0.6rem", color: "#047857", borderColor: "#a7f3d0" }}
-                                  title="View / Edit Payment Details"
-                                  onClick={() => onOpenPaymentDetails && onOpenPaymentDetails(q, q.status === "Ongoing" ? "ongoing" : "deposit")}
+                                  style={{ 
+                                    padding: "0.4rem 0.6rem", 
+                                    color: q.status === "Completed" ? "#7e22ce" : "#047857", 
+                                    borderColor: q.status === "Completed" ? "#d8b4fe" : "#a7f3d0",
+                                    background: q.status === "Completed" ? "#faf5ff" : "inherit"
+                                  }}
+                                  title={q.status === "Completed" ? "View Payment Details (Locked - Completed)" : "View / Edit Payment Details"}
+                                  onClick={() => onOpenPaymentDetails && onOpenPaymentDetails(q, q.status === "Ongoing" || q.status === "Completed" ? "ongoing" : "deposit")}
                                 >
                                   <Banknote size={15} />
                                 </button>

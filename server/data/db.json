@@ -364,6 +364,11 @@
         "id": "dr4",
         "name": "Cucumber Mint Infused Iced Drink",
         "description": "Crisp cucumber essence with light citrus and chilled mineral water"
+      },
+      {
+        "id": "dr5",
+        "name": "Soda (Coke)",
+        "description": "Ice-cold Coca-Cola Soda (Bottomless)"
       }
     ]
   },

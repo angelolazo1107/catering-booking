@@ -21,6 +21,7 @@ import {
   generateDefaultIngressInventory, 
   OFFICIAL_INGRESS_DISCLAIMER_NOTE 
 } from "../data/inventoryEquipmentData";
+import { formatTime12Hour } from "../utils/bookingUtils";
 
 export default function IngressEgressManager({
   bookings = [],
@@ -300,7 +301,7 @@ export default function IngressEgressManager({
               Event Schedule & Venue
             </div>
             <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "var(--text-primary)" }}>
-              {formattedDate} {currentBooking?.eventTime ? `@ ${currentBooking.eventTime}` : ""}
+              {formattedDate} {currentBooking?.eventTime ? `@ ${formatTime12Hour(currentBooking.eventTime)}` : ""}
             </div>
             <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
               {currentBooking?.venueName || "Venue TBA"}, {currentBooking?.venueAddress || ""}
@@ -579,7 +580,7 @@ export default function IngressEgressManager({
             <div>
               <span style={{ color: "#64748b", fontWeight: 700, textTransform: "uppercase", fontSize: "0.7rem", display: "block" }}>EVENT DATE & TIME:</span>
               <strong style={{ color: "#0f172a" }}>
-                {formattedDate} {currentBooking?.eventTime ? `@ ${currentBooking.eventTime}` : ""}
+                {formattedDate} {currentBooking?.eventTime ? `@ ${formatTime12Hour(currentBooking.eventTime)}` : ""}
               </strong>
             </div>
 

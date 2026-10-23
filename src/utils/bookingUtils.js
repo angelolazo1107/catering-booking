@@ -7,6 +7,54 @@
 export const MAX_CONFIRMED_BOOKINGS_PER_DAY = 3;
 
 /**
+ * Converts time to 12-hour format with AM and PM (e.g. "18:00" -> "6:00 PM")
+ */
+export function formatTime12Hour(timeStr) {
+  if (!timeStr) return "TBA";
+  const trimmed = String(timeStr).trim();
+  if (!trimmed) return "TBA";
+  if (/am|pm/i.test(trimmed)) return trimmed;
+
+  const parts = trimmed.split(":");
+  if (parts.length >= 2) {
+    let hours = parseInt(parts[0], 10);
+    const minutes = parts[1].slice(0, 2).padStart(2, "0");
+    if (isNaN(hours)) return trimmed;
+    const ampm = hours >= 12 ? "PM" : "AM";
+    hours = hours % 12;
+    if (hours === 0) hours = 12;
+    return `${hours}:${minutes} ${ampm}`;
+  }
+  return trimmed;
+}
+
+/**
+ * Computes conference end date based on start date and number of days
+ */
+export function getConferenceEndDate(startDateStr, days = 3) {
+  if (!startDateStr) return "";
+  try {
+    const parts = startDateStr.split("-");
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const d = new Date(year, month, day);
+      d.setDate(d.getDate() + (Math.max(1, Number(days)) - 1));
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    const d = new Date(startDateStr);
+    d.setDate(d.getDate() + (Math.max(1, Number(days)) - 1));
+    return d.toISOString().split("T")[0];
+  } catch (e) {
+    return startDateStr;
+  }
+}
+
+/**
  * Format a human-readable and system-standard Booking Reference
  * Format requested: Date then time - the name of client
  * Example: BK-2025-12-01-1630-CleoMarieTanquerido

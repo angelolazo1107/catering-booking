@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Search, Calendar, MapPin, Users, CheckCircle2, Clock, AlertCircle, Phone, ArrowLeft, DollarSign, FileText } from "lucide-react";
 import { getBookings } from "../services/backendService";
 import { CATERER_INFO } from "../data/cateringData";
+import { formatTime12Hour } from "../utils/bookingUtils";
 
 export default function TrackReservation({ activeCompany, onViewBooking, onNewBooking }) {
   const [refId, setRefId] = useState("");
@@ -129,7 +130,7 @@ export default function TrackReservation({ activeCompany, onViewBooking, onNewBo
                   <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700 }}>Event Date & Time</div>
                   <div style={{ fontWeight: 700, color: "var(--text-primary)", marginTop: "3px", display: "flex", alignItems: "center", gap: "0.35rem" }}>
                     <Calendar size={15} color="var(--gold-600)" />
-                    <span>{searchedBooking.eventDate || "TBA"} ({searchedBooking.eventTime || "Buffet"})</span>
+                    <span>{searchedBooking.eventDate || "TBA"} ({formatTime12Hour(searchedBooking.eventTime)})</span>
                   </div>
                 </div>
 

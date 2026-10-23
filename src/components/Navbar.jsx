@@ -37,13 +37,6 @@ export default function Navbar({ activeTab, setActiveTab, dbStatus, onOpenFireba
             <Sparkles size={17} />
             <span>Package & Menu Backend</span>
           </button>
-          <button
-            className={`nav-tab-btn ${activeTab === "pricing-guide" ? "active" : ""}`}
-            onClick={() => setActiveTab("pricing-guide")}
-          >
-            <DollarSign size={17} />
-            <span>Dev Client Pricing</span>
-          </button>
         </nav>
 
         <div>

@@ -1,33 +1,34 @@
 import { DEFAULT_TERMS_AND_CONDITIONS, DEFAULT_PACKAGE_INCLUSIONS } from "./tenantSchema";
 
 export const CATERER_INFO = {
-  businessName: "PLATABLE CATERING SERVICES",
-  tagline: "Premier Philippine Catering & Banquet Events",
+  businessName: "PALATABLE CATERING SERVICES",
+  tagline: "Premier Philippine Catering & Food Tray Services",
   tin: "",
-  phone: "+63 917 000 0000",
-  email: "inquiries@platablecatering.ph",
-  website: "www.platablecatering.ph",
+  phone: "+63 956 009 4971",
+  email: "palatableiloph@gmail.com",
+  website: "www.palatablecatering.ph",
   address: "Brgy. Gaub, Cabatuan, Iloilo",
   bankDetails: {
-    gcash: { name: "Platable Catering Services", number: "+63 917 000 0000" },
+    gcash: { name: "Palatable Catering Services", number: "+63 956 009 4971" },
     selectedBank: "pnb",
     bankName: "Philippine National Bank (PNB)",
-    accountName: "Platable Catering Services",
+    accountName: "Palatable Catering Services",
     accountNumber: "1234-5678-9012",
     branch: "Main Corporate Branch",
     accountType: "Corporate Current / Savings Account",
     acceptCardAtStore: true,
     cardPaymentNotes: "Credit & Debit Cards (Visa, Mastercard, BancNet, JCB) accepted via physical POS terminal at store commissary.",
-    bdo: { accountName: "Platable Catering Services", accountNumber: "" },
-    bpi: { accountName: "Platable Catering Services", accountNumber: "" }
+    bdo: { accountName: "Palatable Catering Services", accountNumber: "" },
+    bpi: { accountName: "Palatable Catering Services", accountNumber: "" }
   },
   termsAndConditions: DEFAULT_TERMS_AND_CONDITIONS,
   packageInclusions: DEFAULT_PACKAGE_INCLUSIONS
 };
 
-export const CATERING_PACKAGES = [
+export const BUFFET_PACKAGES = [
   {
     id: "package_1",
+    serviceType: "buffet",
     name: "Package 1 (Palatable Classic Starter)",
     subtitle: "3 Regular Main Dishes, 1 Regular Side, 1 Regular Dessert, Rice/Soup & Beverage",
     badge: "Budget Friendly",
@@ -59,6 +60,7 @@ export const CATERING_PACKAGES = [
   },
   {
     id: "package_2",
+    serviceType: "buffet",
     name: "Package 2 (Palatable Fiesta Feast)",
     subtitle: "4 Regular Main Dishes, 1 Regular Side, 1 Regular Dessert, Rice/Soup & Beverage",
     badge: "Standard Value",
@@ -91,6 +93,7 @@ export const CATERING_PACKAGES = [
   },
   {
     id: "package_3",
+    serviceType: "buffet",
     name: "Package 3 (Palatable Deluxe Buffet)",
     subtitle: "4 Regular Main Dishes, 1 Regular Side, 1 Special Side, 1 Regular Dessert, Rice/Soup & Beverage",
     badge: "Deluxe Feast",
@@ -124,6 +127,7 @@ export const CATERING_PACKAGES = [
   },
   {
     id: "package_4",
+    serviceType: "buffet",
     name: "Package 4 (Palatable Grand Feast)",
     subtitle: "5 Regular Main Dishes, 1 Regular Side, 1 Special Side, 1 Regular Dessert, 1 Special Dessert, Rice/Soup & Beverage",
     badge: "Palatable Best Seller ⭐",
@@ -159,6 +163,7 @@ export const CATERING_PACKAGES = [
   },
   {
     id: "package_5",
+    serviceType: "buffet",
     name: "Package 5 (Palatable Royal Premiere VIP)",
     subtitle: "6 Regular Main Dishes, 1 Regular Side, 1 Special Side, 1 Regular Dessert, 1 Special Dessert, Rice/Soup & Beverage",
     badge: "Premiere VIP Luxe",
@@ -193,9 +198,320 @@ export const CATERING_PACKAGES = [
   }
 ];
 
+export const FOOD_TRAY_PACKAGES = [
+  {
+    id: "food_tray_small",
+    serviceType: "food_tray",
+    name: "Small Batch Package (Food Tray)",
+    subtitle: "3 Regular Main Dish + 2 Regular Side in Party Trays",
+    badge: "10-15 PAX",
+    popular: false,
+    price: 7500,
+    pricePerPax: 500,
+    minPax: 10,
+    maxPax: 15,
+    paxRange: "10-15 PAX",
+    mainDishesCount: 3,
+    sideDishes: { regular: 2, special: 0 },
+    desserts: { regular: 0, special: 0 },
+    courses: {
+      beef: 1,
+      pork: 1,
+      chicken: 1,
+      sideRegular: 2,
+      sideSpecial: 0,
+      dessertRegular: 0,
+      dessertSpecial: 0,
+      riceOrSoup: 0,
+      drinks: 0
+    },
+    inclusions: [
+      "3 Regular Main Dishes (Choice of Beef, Pork, Chicken, Seafood)",
+      "2 Regular Side Dishes (Pasta, Noodles, or Vegetables)",
+      "Food-grade aluminum party food trays with secure lids",
+      "Free delivery to Iloilo City, Pavia, Sta. Barbara, Cabatuan, Maasin, San Miguel, Janiuay",
+      "Bookings placed 2-3 days prior to event",
+      "50% downpayment upon booking, remaining balance upon delivery",
+      "Strictly no cancellation (70% cancellation fee)"
+    ]
+  },
+  {
+    id: "food_tray_family",
+    serviceType: "food_tray",
+    name: "Family Party Package (Food Tray)",
+    subtitle: "3 Regular Main Dish + 2 Regular Side in Party Trays",
+    badge: "25-30 PAX",
+    popular: true,
+    price: 12500,
+    pricePerPax: 417,
+    minPax: 25,
+    maxPax: 30,
+    paxRange: "25-30 PAX",
+    mainDishesCount: 3,
+    sideDishes: { regular: 2, special: 0 },
+    desserts: { regular: 0, special: 0 },
+    courses: {
+      beef: 1,
+      pork: 1,
+      chicken: 1,
+      sideRegular: 2,
+      sideSpecial: 0,
+      dessertRegular: 0,
+      dessertSpecial: 0,
+      riceOrSoup: 0,
+      drinks: 0
+    },
+    inclusions: [
+      "3 Regular Main Dishes (Choice of Beef, Pork, Chicken, Seafood)",
+      "2 Regular Side Dishes (Pasta, Noodles, or Vegetables)",
+      "Food-grade aluminum party food trays with secure lids",
+      "Free delivery to Iloilo City, Pavia, Sta. Barbara, Cabatuan, Maasin, San Miguel, Janiuay",
+      "Bookings placed 2-3 days prior to event",
+      "50% downpayment upon booking, remaining balance upon delivery",
+      "Strictly no cancellation (70% cancellation fee)"
+    ]
+  },
+  {
+    id: "food_tray_bunch",
+    serviceType: "food_tray",
+    name: "The Big Bunch Package (Food Tray)",
+    subtitle: "3 Regular Main Dish + 2 Regular Side in Party Trays",
+    badge: "35-40 PAX",
+    popular: false,
+    price: 15500,
+    pricePerPax: 388,
+    minPax: 35,
+    maxPax: 40,
+    paxRange: "35-40 PAX",
+    mainDishesCount: 3,
+    sideDishes: { regular: 2, special: 0 },
+    desserts: { regular: 0, special: 0 },
+    courses: {
+      beef: 1,
+      pork: 1,
+      chicken: 1,
+      sideRegular: 2,
+      sideSpecial: 0,
+      dessertRegular: 0,
+      dessertSpecial: 0,
+      riceOrSoup: 0,
+      drinks: 0
+    },
+    inclusions: [
+      "3 Regular Main Dishes (Choice of Beef, Pork, Chicken, Seafood)",
+      "2 Regular Side Dishes (Pasta, Noodles, or Vegetables)",
+      "Food-grade aluminum party food trays with secure lids",
+      "Free delivery to Iloilo City, Pavia, Sta. Barbara, Cabatuan, Maasin, San Miguel, Janiuay",
+      "Bookings placed 2-3 days prior to event",
+      "50% downpayment upon booking, remaining balance upon delivery",
+      "Strictly no cancellation (70% cancellation fee)"
+    ]
+  },
+  {
+    id: "food_tray_single_dish",
+    serviceType: "food_tray",
+    name: "Single Dish / A La Carte Food Tray",
+    subtitle: "Select 1 Regular Dish of your choice (Priced per pax / tray)",
+    badge: "1 Regular Dish",
+    popular: false,
+    isCustomSingleDish: true,
+    price: 2500,
+    pricePerPax: 200,
+    minPax: 10,
+    maxPax: 50,
+    paxRange: "10-15 PAX (Customizable)",
+    mainDishesCount: 1,
+    sideDishes: { regular: 0, special: 0 },
+    desserts: { regular: 0, special: 0 },
+    courses: {
+      beef: 1,
+      pork: 0,
+      chicken: 0,
+      sideRegular: 0,
+      sideSpecial: 0,
+      dessertRegular: 0,
+      dessertSpecial: 0,
+      riceOrSoup: 0,
+      drinks: 0
+    },
+    inclusions: [
+      "Select 1 Regular Dish (or Special Dish upgrade) from Palatable's Master Menu",
+      "Freshly prepared in food-grade aluminum party tray",
+      "Free delivery within Iloilo Free Zone (orders ₱5,000+)",
+      "Customizable serving size based on guest headcount"
+    ]
+  }
+];
+
+export const PICA_PICA_PACKAGES = [
+  {
+    id: "pica_pica_opt1",
+    serviceType: "pica_pica",
+    name: "Option 1 (Pica Pica Station)",
+    subtitle: "2 Sliders, 5 Canapés, 2 Finger Food, 2 Mini Dessert Cups & Drinks",
+    badge: "50 PAX Min • ₱300/pax",
+    popular: false,
+    pricePerPax: 300,
+    minPax: 50,
+    paxRange: "50 PAX Min",
+    picaAllowances: {
+      sliders: 2,
+      canapes: 5,
+      fingerFood: 2,
+      miniDesserts: 2,
+      drinks: 1
+    },
+    inclusions: [
+      "2 Sliders (Choice of mini chicken, burgers, clubhouse, etc.)",
+      "5 Canapés (Artisanal savory bite-sized appetizers)",
+      "2 Finger Food (Hot savory finger foods with dips)",
+      "2 Mini Dessert Cups (Chilled dessert shooters & sweet treats)",
+      "Choice of: Refreshing Juice or Fresh Brewed Coffee",
+      "Full live cocktail food station setup with rustic wooden risers, spotlights & greenery",
+      "Minimum booking guarantee: 50 PAX"
+    ]
+  },
+  {
+    id: "pica_pica_opt2",
+    serviceType: "pica_pica",
+    name: "Option 2 (Pica Pica Station)",
+    subtitle: "3 Sliders, 5 Canapés, 3 Finger Food, 2 Mini Dessert Cups & Drinks",
+    badge: "Palatable Favorite ⭐",
+    popular: true,
+    pricePerPax: 350,
+    minPax: 50,
+    paxRange: "50 PAX Min",
+    picaAllowances: {
+      sliders: 3,
+      canapes: 5,
+      fingerFood: 3,
+      miniDesserts: 2,
+      drinks: 1
+    },
+    inclusions: [
+      "3 Sliders (Choice of mini chicken, burgers, clubhouse, etc.)",
+      "5 Canapés (Artisanal savory bite-sized appetizers)",
+      "3 Finger Food (Hot savory finger foods with dips)",
+      "2 Mini Dessert Cups (Chilled dessert shooters & sweet treats)",
+      "Choice of: Refreshing Juice or Fresh Brewed Coffee",
+      "Full live cocktail food station setup with rustic wooden risers, spotlights & greenery",
+      "Minimum booking guarantee: 50 PAX"
+    ]
+  },
+  {
+    id: "pica_pica_opt3",
+    serviceType: "pica_pica",
+    name: "Option 3 - Grand (Pica Pica Station)",
+    subtitle: "3 Sliders, 5 Canapés, 3 Finger Food, 3 Mini Desserts, Pinoy Kakanins & DIY Live Station",
+    badge: "Grand Station Feast",
+    popular: false,
+    pricePerPax: 425,
+    minPax: 50,
+    paxRange: "50 PAX Min",
+    picaAllowances: {
+      sliders: 3,
+      canapes: 5,
+      fingerFood: 3,
+      miniDesserts: 3,
+      hasKakanin: true,
+      hasDiyStation: true,
+      drinks: 1
+    },
+    inclusions: [
+      "3 Sliders (Choice of mini chicken, burgers, clubhouse, etc.)",
+      "5 Canapés (Artisanal savory bite-sized appetizers)",
+      "3 Finger Food (Hot savory finger foods with dips)",
+      "3 Mini Dessert Cups (Chilled dessert shooters & sweet treats)",
+      "Pinoy Kakanins (Traditional Filipino native delicacies included)",
+      "Choice of: DIY Nacho Station OR DIY Mini Doughnut Station",
+      "Choice of: Refreshing Juice or Fresh Brewed Coffee",
+      "Complete live experiential cocktail station setup with service attendants",
+      "Minimum booking guarantee: 50 PAX"
+    ]
+  }
+];
+
+export const GRAZING_TABLE_PACKAGES = [
+  {
+    id: "grazing_deluxe",
+    serviceType: "grazing_table",
+    name: "Deluxe Grazing Table Package",
+    subtitle: "Artisan Charcuterie, Imported Cheeses, 5 Canapés, 4 Sliders & Nachos Station",
+    badge: "100-150 PAX",
+    popular: true,
+    price: 85000,
+    pricePerPax: 567,
+    minPax: 100,
+    maxPax: 150,
+    paxRange: "Good for 100-150 PAX",
+    grazingAllowances: {
+      canapes: 5,
+      sliders: 4
+    },
+    inclusions: [
+      "5 Kilos of Italian Cured Meats (Prosciutto, Salami, Mortadella, Coppa)",
+      "5 Types of Premium Imported Cheeses (Brie, Gouda, Cheddar, Blue Cheese, etc.)",
+      "5 Big Seasonal Fresh Fruit Platters",
+      "5 Canapés (Curated from Palatable Canapés library)",
+      "4 Sliders (Curated from Palatable Sliders library)",
+      "Mix Assorted Nuts and Dried Fruits",
+      "Wafers, Saltin Crackers, Bretzels & Vegetable Sticks",
+      "Olives, Cocktail Onions & Dips",
+      "Hungarian Sausage Platter",
+      "Individual Grazing Cups",
+      "Complete Nachos Station with warm cheese sauce & salsa",
+      "Artisan Breadbasket with Gourmet Jams & Spreads",
+      "Full thematic grazing table styling with tiered wooden slabs, fresh foliage & ambient lighting"
+    ]
+  },
+  {
+    id: "grazing_premium",
+    serviceType: "grazing_table",
+    name: "Premium Grazing Table Package",
+    subtitle: "Grand Charcuterie Feast, 5 Canapés, 4 Sliders, Dessert Shots & Nachos Station",
+    badge: "150-200 PAX",
+    popular: false,
+    price: 105000,
+    pricePerPax: 525,
+    minPax: 150,
+    maxPax: 200,
+    paxRange: "Good for 150-200 PAX",
+    grazingAllowances: {
+      canapes: 5,
+      sliders: 4,
+      hasDessertShots: true
+    },
+    inclusions: [
+      "5 Kilos of Italian Cured Meats (Prosciutto, Salami, Mortadella, Coppa)",
+      "5 Types of Premium Imported Cheeses (Brie, Gouda, Cheddar, Blue Cheese, etc.)",
+      "5 Big Seasonal Fresh Fruit Platters",
+      "5 Canapés (Curated from Palatable Canapés library)",
+      "4 Sliders (Curated from Palatable Sliders library)",
+      "Mix Assorted Nuts and Dried Fruits",
+      "Wafers, Saltin Crackers, Bretzels & Vegetable Sticks",
+      "Olives, Cocktail Onions & Dips",
+      "Hungarian Sausage Platter",
+      "Individual Grazing Cups",
+      "Complete Nachos Station with warm cheese sauce & salsa",
+      "Artisanal Dessert Shots (Cheesecake, Tiramisu, Chocolate Ganache)",
+      "Artisan Breadbasket with Gourmet Jams & Spreads",
+      "Grand luxury grazing table styling with tiered marble/wood stands, botanical decor & mood lighting"
+    ]
+  }
+];
+
+export const CATERING_PACKAGES = [
+  ...BUFFET_PACKAGES,
+  ...FOOD_TRAY_PACKAGES,
+  ...PICA_PICA_PACKAGES,
+  ...GRAZING_TABLE_PACKAGES
+];
+
 export function getMainDishesCount(pkg) {
   if (!pkg) return 5;
-  // 1. Inclusions take precedence if specified explicitly in the bullet points (e.g. "4 Main Dishes", "5 Regular Main Dish")
+  if (pkg.serviceType === "pica_pica" || pkg.id?.startsWith("pica_pica")) return 0;
+  if (pkg.serviceType === "grazing_table" || pkg.id?.startsWith("grazing_")) return 0;
+  // 1. Inclusions take precedence if specified explicitly in the bullet points (e.g. "4 Main Dishes", "5 Regular Main Dish", "3 Regular Main Dish")
   if (Array.isArray(pkg.inclusions)) {
     for (const inc of pkg.inclusions) {
       const match = inc.match(/(\d+)\s*(?:Regular|Gourmet)?\s*Main Dish(?:es)?/i) || inc.match(/(\d+)\s*Heavy Snacks/i);
@@ -206,7 +522,12 @@ export function getMainDishesCount(pkg) {
   if (typeof pkg.mainDishesCount === "number" && pkg.mainDishesCount > 0) {
     return pkg.mainDishesCount;
   }
-  // 3. Check name or ID
+  // 3. Single dish tray
+  if (pkg.id === "food_tray_single_dish" || pkg.isCustomSingleDish) return 1;
+  // 4. Food tray packages default to 3
+  if (pkg.serviceType === "food_tray" || pkg.id?.startsWith("food_tray")) return 3;
+
+  // 5. Check name or ID
   const nameOrId = `${pkg.name || ""} ${pkg.id || ""} ${pkg.subtitle || ""}`.toLowerCase();
   if (nameOrId.includes("package 1") || nameOrId.includes("pkg 1")) return 3;
   if (nameOrId.includes("package 2") || nameOrId.includes("pkg 2")) return 4;
@@ -231,6 +552,49 @@ export function getPackageCourseAllowances(pkg) {
     };
   }
   const mainDishesCount = getMainDishesCount(pkg);
+
+  // If Food Tray package:
+  if (pkg.serviceType === "food_tray" || pkg.id?.startsWith("food_tray")) {
+    const isSingle = pkg.id === "food_tray_single_dish" || pkg.isCustomSingleDish || mainDishesCount === 1;
+    return {
+      mainDishesCount: mainDishesCount || (isSingle ? 1 : 3),
+      regSidesCount: typeof pkg.sideDishes?.regular === "number" ? pkg.sideDishes.regular : (isSingle ? 0 : 2),
+      specSidesCount: typeof pkg.sideDishes?.special === "number" ? pkg.sideDishes.special : 0,
+      regDessertsCount: typeof pkg.desserts?.regular === "number" ? pkg.desserts.regular : 0,
+      specDessertsCount: typeof pkg.desserts?.special === "number" ? pkg.desserts.special : 0
+    };
+  }
+
+  // If Pica Pica package:
+  if (pkg.serviceType === "pica_pica" || pkg.id?.startsWith("pica_pica")) {
+    return {
+      mainDishesCount: 0,
+      regSidesCount: 0,
+      specSidesCount: 0,
+      regDessertsCount: 0,
+      specDessertsCount: 0,
+      slidersCount: pkg.picaAllowances?.sliders || 2,
+      canapesCount: pkg.picaAllowances?.canapes || 5,
+      fingerFoodCount: pkg.picaAllowances?.fingerFood || 2,
+      miniDessertsCount: pkg.picaAllowances?.miniDesserts || 2,
+      hasKakanin: Boolean(pkg.picaAllowances?.hasKakanin),
+      hasDiyStation: Boolean(pkg.picaAllowances?.hasDiyStation)
+    };
+  }
+
+  // If Grazing Table package:
+  if (pkg.serviceType === "grazing_table" || pkg.id?.startsWith("grazing_")) {
+    return {
+      mainDishesCount: 0,
+      regSidesCount: 0,
+      specSidesCount: 0,
+      regDessertsCount: 0,
+      specDessertsCount: 0,
+      canapesCount: pkg.grazingAllowances?.canapes || 5,
+      slidersCount: pkg.grazingAllowances?.sliders || 4,
+      hasDessertShots: Boolean(pkg.grazingAllowances?.hasDessertShots)
+    };
+  }
 
   let regSidesCount;
   let specSidesCount;
@@ -307,6 +671,7 @@ export function getDishUpgradePrice(dish) {
   if (lower.includes("roast beef")) return 95;
   if (lower.includes("tinu-om") || lower.includes("tinuom")) return 95;
   if (lower.includes("ox tongue") || lower.includes("lengua")) return 80;
+  if (dish.category === "sliders" || dish.category === "canapes" || dish.id?.startsWith("sld_spec") || dish.id?.startsWith("cnp_spec")) return 45;
   return DEFAULT_SPECIAL_DISH_UPGRADE_RATE;
 }
 
@@ -471,7 +836,79 @@ export const DISH_MENU_OPTIONS = {
     { id: "dr1", name: "Bottomless Signature Red Iced Tea", tier: "regular", description: "House blend iced tea brewed with sweet berry notes and calamansi zest" },
     { id: "dr2", name: "Fresh Calamansi & Dalandan Citrus Cooler", tier: "regular", description: "Cold-pressed native Philippine citrus sweetened with organic wild honey" },
     { id: "dr3", name: "Blue Lemonade Refresher with Mint", tier: "regular", description: "Refreshing blue lemonade infused with fresh crushed spearmint" },
-    { id: "dr4", name: "Cucumber Mint Infused Iced Drink", tier: "regular", description: "Crisp cucumber essence with light citrus and chilled mineral water" }
+    { id: "dr4", name: "Cucumber Mint Infused Iced Drink", tier: "regular", description: "Crisp cucumber essence with light citrus and chilled mineral water" },
+    { id: "dr5", name: "Soda (Coke)", tier: "regular", description: "Ice-cold Coca-Cola Soda (Bottomless)" }
+  ],
+  sliders: [
+    // REGULAR CHOICES
+    { id: "sld_reg_1", name: "Mini Crispy Chicken Sandwich", tier: "regular", description: "Crispy fried chicken cutlet in toasted mini brioche bun with honey mustard slaw" },
+    { id: "sld_reg_2", name: "Mini BLT or Mini Cheese Burger", tier: "regular", description: "Juicy beef patty with melted cheddar, crisp lettuce, tomato, or bacon" },
+    { id: "sld_reg_3", name: "Mini Ham and Cheese Slider", tier: "regular", description: "Savory ham and melting cheddar layered in buttered mini soft roll" },
+    { id: "sld_reg_4", name: "Mini Cheesy Chicken Pesto", tier: "regular", description: "Shredded chicken tossed in fresh basil pesto and melted mozzarella" },
+    { id: "sld_reg_5", name: "Mini Honey Glazed Chicken Sandwich", tier: "regular", description: "Sweet and savory honey glazed chicken breast in soft slider bun" },
+    { id: "sld_reg_6", name: "Mini Club House Sandwich", tier: "regular", description: "Triple-decker finger sandwich with chicken, egg, ham, lettuce and cheese" },
+    { id: "sld_reg_7", name: "Mini Tuna Salad Sandwich", tier: "regular", description: "Creamy flaked tuna spread with celery, pickles and light mayo" },
+    { id: "sld_reg_8", name: "Mini Hawaiian Chicken Sandwich", tier: "regular", description: "Grilled teriyaki chicken fillet with caramelized pineapple ring" },
+    { id: "sld_reg_9", name: "Mini Hawaiian Sandwich", tier: "regular", description: "Sweet cured ham with grilled pineapple slice and melted cheese" },
+    { id: "sld_reg_10", name: "Mini Ham and Egg Sandwich", tier: "regular", description: "Classic breakfast slider with savory ham slice and fluffy egg omelet" },
+    // SPECIAL CHOICES
+    { id: "sld_spec_1", name: "Sour Dough Pastrami Sandwich", tier: "special", premium: true, upgradePrice: 45, description: "Peppered beef pastrami on artisan sourdough with dijon aioli" },
+    { id: "sld_spec_2", name: "Turkey Sandwich", tier: "special", premium: true, upgradePrice: 45, description: "Roasted turkey breast with cranberry-apple spread and swiss cheese" },
+    { id: "sld_spec_3", name: "Coppa Ham and Colby Jack Sandwich", tier: "special", premium: true, upgradePrice: 45, description: "Cured Italian coppa with marbled colby jack cheese on mini baguette" },
+    { id: "sld_spec_4", name: "Pastrami, Jalapeño with Garlic Cream Cheese Sandwich", tier: "special", premium: true, upgradePrice: 45, description: "Spiced beef pastrami with pickled jalapeños and whipped garlic cream cheese" },
+    { id: "sld_spec_5", name: "Glazed Bacon in Mango Salsa", tier: "special", premium: true, upgradePrice: 45, description: "Candied thick-cut bacon slider topped with zesty fresh mango salsa" },
+    { id: "sld_spec_6", name: "Mortadela Pesto Sandwich", tier: "special", premium: true, upgradePrice: 45, description: "Thinly shaved Italian mortadella with pistachio pesto and provolone" },
+    { id: "sld_spec_7", name: "Salami and Garlic Cream Cheese", tier: "special", premium: true, upgradePrice: 45, description: "Genoa salami slices paired with roasted garlic cream cheese spread" },
+    { id: "sld_spec_8", name: "Bagel Breakfast Slider", tier: "special", premium: true, upgradePrice: 45, description: "Mini toasted bagel with cream cheese, savory sausage patty and egg" }
+  ],
+  canapes: [
+    // REGULAR CHOICES
+    { id: "cnp_reg_1", name: "Tuna Quinoa Salad", tier: "regular", description: "Protein-rich quinoa tossed with flaked tuna, diced peppers and lemon dressing on cucumber rounds" },
+    { id: "cnp_reg_2", name: "Mini Olives, Hungarian Sausage and Cheese Skewers", tier: "regular", description: "Savory bite skewer with pitted olives, spiced Hungarian sausage and cheddar cubes" },
+    { id: "cnp_reg_3", name: "Garlic Bread in Mango Salsa Dip", tier: "regular", description: "Toasted crunchy garlic crostini topped with vibrant Guimaras mango salsa" },
+    { id: "cnp_reg_4", name: "Crab Cakes with Garlic Cream Cheese", tier: "regular", description: "Golden pan-seared mini crab cakes piped with rich garlic cream cheese" },
+    { id: "cnp_reg_5", name: "Chicken Ala King Bites", tier: "regular", description: "Flaky pastry bites filled with creamy chicken, bell peppers and peas" },
+    { id: "cnp_reg_6", name: "Chili Con Carne Bites", tier: "regular", description: "Crisp tortilla cups loaded with spiced beef chili, kidney beans and cheese" },
+    { id: "cnp_reg_7", name: "Tuna Salad Bites", tier: "regular", description: "Savory mini pastry shells with zesty herbed tuna salad" },
+    { id: "cnp_reg_8", name: "Jalapeño Devils Egg", tier: "regular", description: "Hard-boiled egg stuffed with creamy spiced yolk and jalapeño crown" },
+    { id: "cnp_reg_9", name: "Potato Croquettes", tier: "regular", description: "Crispy fried mashed potato bites with melting cheese center" },
+    { id: "cnp_reg_10", name: "Pita Bread with Hummus Dip", tier: "regular", description: "Toasted pita wedges served with velvety chickpea tahini hummus" },
+    { id: "cnp_reg_11", name: "Crab Alegue and Quinoa Salad", tier: "regular", description: "Quinoa infused with rich crab fat aligue and calamansi zest" },
+    { id: "cnp_reg_12", name: "Chorizo Salad Bites", tier: "regular", description: "Savory Spanish chorizo rounds over seasonal microgreens on crostini" },
+    // SPECIAL CHOICES
+    { id: "cnp_spec_1", name: "Garlic Stick Wrapped in Prosciutto with Creamy Dip", tier: "special", premium: true, upgradePrice: 45, description: "Crispy garlic grissini wrapped in cured Italian prosciutto with truffle cream dip" },
+    { id: "cnp_spec_2", name: "Shrimp Cocktail", tier: "special", premium: true, upgradePrice: 45, description: "Chilled poached jumbo prawn served in shot glass with tangy cocktail sauce" },
+    { id: "cnp_spec_3", name: "Poached Eggs with Asparagus and Hollandaise", tier: "special", premium: true, upgradePrice: 45, description: "Delicate quail egg with blanched asparagus tip and rich buttery hollandaise" },
+    { id: "cnp_spec_4", name: "Quiche", tier: "special", premium: true, upgradePrice: 45, description: "French Lorraine-style mini quiche tartlet with bacon, caramelized onions and gruyère" },
+    { id: "cnp_spec_5", name: "Baked Chicken Puff Pastry", tier: "special", premium: true, upgradePrice: 45, description: "Buttery golden puff pastry parcel filled with creamy tarragon chicken" },
+    { id: "cnp_spec_6", name: "Whipped Beetroot and Feta Dip with Sour Dough Crackers", tier: "special", premium: true, upgradePrice: 45, description: "Vibrant pink whipped beet and greek feta spread on artisan sourdough crisps" },
+    { id: "cnp_spec_7", name: "Roasted Chick Peas, Coppa Ham and Cream Cheese Bites", tier: "special", premium: true, upgradePrice: 45, description: "Crispy spiced chickpeas, cured coppa ham and cream cheese quenelle" },
+    { id: "cnp_spec_8", name: "Mini Greek Salad Cups", tier: "special", premium: true, upgradePrice: 45, description: "Crisp cucumber, kalamata olives, cherry tomato and feta cheese cup" },
+    { id: "cnp_spec_9", name: "Mini Caesar Salad Cups", tier: "special", premium: true, upgradePrice: 45, description: "Romaine ribbons tossed in parmesan caesar dressing with bacon bits & crouton" },
+    { id: "cnp_spec_10", name: "Mini Chicken and Mango Salsa Salad Cups", tier: "special", premium: true, upgradePrice: 45, description: "Grilled chicken strips over fresh mango salsa in cocktail bite cup" }
+  ],
+  fingerFood: [
+    { id: "ff_1", name: "Chicken Fingers with Dip", tier: "regular", description: "Tender golden breaded chicken breast strips with honey mustard or garlic mayo" },
+    { id: "ff_2", name: "Cheese Sticks in Marinara Sauce", tier: "regular", description: "Crispy mozzarella and cheddar lumpia rolls with rich Italian marinara dip" },
+    { id: "ff_3", name: "Nacho Cups", tier: "regular", description: "Crunchy corn tortilla chips with warm melted cheese, salsa and ground beef" },
+    { id: "ff_4", name: "Jalapeño Cheese Egg Roll", tier: "regular", description: "Crispy fried spring roll stuffed with cream cheese and spicy jalapeño" },
+    { id: "ff_5", name: "Dynamite", tier: "regular", description: "Classic Pinoy green finger chili stuffed with savory cheese in golden crisp wrapper" },
+    { id: "ff_6", name: "Chicken Lollipop", tier: "regular", description: "Crispy French-trimmed chicken drumettes seasoned with herbs and sweet chili dip" },
+    { id: "ff_7", name: "Potato Wedges", tier: "regular", description: "Seasoned crispy skin-on potato wedges dusted with smoked paprika and garlic" },
+    { id: "ff_8", name: "Sweet Potato Wedges", tier: "regular", description: "Oven-roasted caramelized orange sweet potato wedges with spiced sour cream dip" },
+    { id: "ff_9", name: "Ham and Cheese Rolls", tier: "regular", description: "Golden toasted finger bread rolls filled with sweet cured ham and melting cheddar" }
+  ],
+  miniDesserts: [
+    { id: "md_1", name: "Mixed Seasonal Fruit Cups", tier: "regular", description: "Refreshing medley of freshly diced watermelon, melon, grapes and pineapple in shot cup" },
+    { id: "md_2", name: "Mango Tapioca", tier: "regular", description: "Sweet ripe Guimaras mangoes with chewy sago pearls in rich chilled cream" },
+    { id: "md_3", name: "Coffee Jelly", tier: "regular", description: "Espresso jelly cubes in sweet condensed milk cream and cocoa dusting" },
+    { id: "md_4", name: "Strawberry Short Cake", tier: "regular", description: "Mini sponge cake shooter layered with Baguio strawberry compote and whipped cream" },
+    { id: "md_5", name: "Blueberry Cheese Cake", tier: "regular", description: "Rich cream cheese mousse topped with tart sweet wild blueberry coulis" },
+    { id: "md_6", name: "Mango Cheese Cake", tier: "regular", description: "Velvety cheesecake cup topped with sweet fresh Guimaras mango puree" },
+    { id: "md_7", name: "Strawberry Cheese Cake", tier: "regular", description: "Individual cheesecake cup with crushed graham base and strawberry glaze" },
+    { id: "md_8", name: "Biscoff Parfaits", tier: "regular", description: "Layered Lotus Biscoff biscuit crumbs, spiced speculoos cream and caramel drizzle" },
+    { id: "md_9", name: "Churros Dip Shots", tier: "regular", description: "Cinnamon sugar dusted mini churro stick dipped in warm Belgian dark chocolate shot" },
+    { id: "md_10", name: "Oreo Cheese Cake", tier: "regular", description: "Cookies and cream cheesecake shooter topped with crunchy Oreo cookie crumbles" }
   ]
 };
 
@@ -569,22 +1006,80 @@ export const CATERING_ADDONS = [
 ];
 
 export const DELIVERY_LOCATIONS = [
-  { id: "ncr", name: "Metro Manila (NCR)", fee: 1500, description: "Quezon City, Manila, Makati, Taguig, Pasig, Mandaluyong, etc." },
-  { id: "south_near", name: "Cavite & Laguna (Near Metro)", fee: 2500, description: "Bacoor, Imus, Dasmariñas, San Pedro, Biñan, Santa Rosa" },
-  { id: "east_rizal", name: "Rizal Province", fee: 2500, description: "Antipolo, Taytay, Cainta, Angono, San Mateo" },
-  { id: "north_bulacan", name: "Bulacan Province", fee: 3500, description: "Meycauayan, Marilao, Malolos, San Jose Del Monte" },
-  { id: "tagaytay_batangas", name: "Tagaytay & Batangas City", fee: 4500, description: "Tagaytay Ridge, Silang, Lipa, Batangas proper" },
-  { id: "pampanga_clark", name: "Pampanga & Clark", fee: 4500, description: "San Fernando, Angeles City, Clark Freeport" },
-  { id: "custom", name: "Custom Out-of-Town / Other Region", fee: 0, description: "Deliveries outside specified zones (Custom quote)" }
+  { 
+    id: "iloilo_free", 
+    name: "Iloilo Free Delivery Zone (₱0)", 
+    fee: 0, 
+    description: "FREE: Iloilo City, Pavia, Sta. Barbara, Cabatuan, Maasin, San Miguel, Janiuay" 
+  },
+  { 
+    id: "iloilo_other", 
+    name: "Other Iloilo Municipalities (₱600)", 
+    fee: 600, 
+    description: "Pototan, Alimodian, Leon, Leganes, Zarraga, Oton, Tigbauan, Barotac Nuevo, Dingle, etc." 
+  },
+  { 
+    id: "panay_regional", 
+    name: "Panay Regional / Out-of-Town (₱1,500)", 
+    fee: 1500, 
+    description: "Passi City, Guimaras, Antique, Capiz" 
+  },
+  { 
+    id: "ncr", 
+    name: "Metro Manila / Luzon (NCR) (₱1,500)", 
+    fee: 1500, 
+    description: "Quezon City, Manila, Makati, Taguig, Pasig, Mandaluyong, etc." 
+  },
+  { 
+    id: "custom", 
+    name: "Custom Delivery Distance (Custom Quote)", 
+    fee: 0, 
+    description: "Deliveries outside specified zones (Custom quote based on distance)" 
+  }
 ];
 
 export const EVENT_TYPES = [
+  { id: "government_conference", name: "Government / Multi-Day Conference (AM/PM Snacks + Lunch + Dinner)" },
+  { id: "corporate", name: "Corporate Event / Seminar / Gala" },
   { id: "wedding", name: "Kasal (Wedding Reception)" },
   { id: "debut", name: "18th Birthday Debut" },
   { id: "birthday", name: "Birthday Party / Milestone Celebration" },
   { id: "binyag", name: "Binyag (Christening / Baptism)" },
-  { id: "corporate", name: "Corporate Event / Seminar / Gala" },
   { id: "reunion", name: "Grand Family Reunion / Fiesta" },
   { id: "anniversary", name: "Wedding Anniversary" },
   { id: "funeral", name: "Pamisa / Memorial Gathering" }
 ];
+
+export const CONFERENCE_MEAL_RATES = {
+  amSnack: 120, // Sandwich + Drink
+  lunchPackage1: 480, // Package 1 (3 Mains, 1 Side, Rice, Dessert, Drink)
+  pmSnack: 140, // Pasta + Drink
+  dinnerPackage2: 550, // Package 2 (4 Mains, 1 Side, Rice, Dessert, Drink)
+  dailyTotal: 1290 // 120 + 480 + 140 + 550
+};
+
+export const CONFERENCE_SNACK_OPTIONS = {
+  sandwiches: [
+    "Clubhouse Sandwich with Potato Crisps",
+    "Chicken Salad Croissant Sandwich",
+    "Cheesy Ham & Egg Brioche Sandwich",
+    "Tuna Melt Toast with Herb Mayo",
+    "Special Beef Burger with Cheese"
+  ],
+  pastas: [
+    "Creamy Carbonara with Garlic Toast",
+    "Creamy Spaghetti Bolognese",
+    "Special Bam-i Guisado with Garlic Bread",
+    "Classic Baked Macaroni with Bechamel",
+    "Pancit Canton Special with Toppings"
+  ],
+  drinks: [
+    "Fresh Calamansi Citrus Cooler",
+    "Bottomless Signature Red Iced Tea",
+    "Blue Lemonade Refresher with Mint",
+    "Cucumber Mint Infused Iced Drink",
+    "Soda (Coke)",
+    "Freshly Brewed Hot Coffee / Tea"
+  ]
+};
+

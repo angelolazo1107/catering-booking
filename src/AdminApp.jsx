@@ -3,9 +3,9 @@ import BookingsDashboard from "./components/BookingsDashboard";
 import BookingCalendarView from "./components/BookingCalendarView";
 import AdminPackageManager from "./components/AdminPackageManager";
 import PrintableQuotation from "./components/PrintableQuotation";
-import ClientPricingGuide from "./components/ClientPricingGuide";
 import KitchenGroceryEstimator from "./components/KitchenGroceryEstimator";
 import StaffLogisticsCalculator from "./components/StaffLogisticsCalculator";
+import FinancialSalesDashboard from "./components/FinancialSalesDashboard";
 import CompanySettings from "./components/CompanySettings";
 import IngressEgressManager from "./components/IngressEgressManager";
 import BookingPaymentModal from "./components/BookingPaymentModal";
@@ -68,7 +68,8 @@ import {
   Plus,
   Check,
   ClipboardCheck,
-  CalendarDays
+  CalendarDays,
+  TrendingUp
 } from "lucide-react";
 
 const ADMIN_STORAGE_KEY = "caterflow_admin_auth";
@@ -99,7 +100,7 @@ export default function AdminApp() {
   const [loginForm, setLoginForm] = useState({ username: "admin", password: "" });
   const [loginError, setLoginError] = useState("");
 
-  const [activeTab, setActiveTab] = useState("bookings"); // "bookings", "calendar", "packages", "pricing-guide"
+  const [activeTab, setActiveTab] = useState("bookings"); // "bookings", "calendar", "packages", "grocery-bom", "staff-logistics", "ingress-egress", "company-settings"
   const [activeQuotation, setActiveQuotation] = useState(null);
   const [selectedIngressBooking, setSelectedIngressBooking] = useState(null);
   const [packageManagerSubTab, setPackageManagerSubTab] = useState("packages");
@@ -214,7 +215,7 @@ export default function AdminApp() {
       return;
     }
 
-    setLoginError("Invalid passcode. Enter Master SuperAdmin key ('admin2026') or your Company Passcode.");
+    setLoginError("Invalid passcode. Please check your credentials and try again.");
   };
 
   const handleLogout = () => {
@@ -324,6 +325,11 @@ export default function AdminApp() {
 
   const handleConfirmPaymentModal = async (paymentData) => {
     if (!paymentModalState.booking) return;
+    if (paymentModalState.booking.status === "Completed") {
+      alert("Payment details cannot be edited for completed bookings.");
+      setPaymentModalState({ isOpen: false, mode: "deposit", booking: null, customBookingRef: null });
+      return;
+    }
     const { booking, mode, customBookingRef } = paymentModalState;
     const targetStatus = mode === "deposit" ? "Confirmed" : "Ongoing";
 
@@ -433,15 +439,6 @@ export default function AdminApp() {
               {loginError}
             </div>
           )}
-
-          <div style={{ background: "#f8fafc", border: "1px solid var(--border-subtle)", borderRadius: "8px", padding: "0.75rem", fontSize: "0.76rem", color: "var(--text-secondary)", marginBottom: "1.25rem", lineHeight: 1.5 }}>
-            <div style={{ fontWeight: 700, color: "var(--text-primary)", marginBottom: "0.25rem", display: "flex", alignItems: "center", gap: "0.3rem" }}>
-              <ShieldCheck size={14} color="var(--gold-600)" />
-              <span>Admin Authentication:</span>
-            </div>
-            <div>• <strong>Master SuperAdmin Passcode:</strong> <code>admin2026</code> (Full platform setup)</div>
-            <div>• <strong>Company Admin Passcode:</strong> <code>cater2026</code> (Or your company's custom passcode)</div>
-          </div>
 
           <form onSubmit={handleLoginSubmit}>
             <div className="form-group" style={{ marginBottom: "1rem" }}>
@@ -605,6 +602,19 @@ export default function AdminApp() {
           </button>
 
           <button
+            className={`sidebar-nav-item ${activeTab === "financials" ? "active" : ""}`}
+            onClick={() => {
+              setActiveQuotation(null);
+              setActiveTab("financials");
+              if (window.innerWidth <= 768) setIsSidebarOpen(false);
+            }}
+            title="Financials, Sales Income & Operating Expenses"
+          >
+            <TrendingUp size={18} style={{ flexShrink: 0 }} />
+            <span>Financials & Sales</span>
+          </button>
+
+          <button
             className={`sidebar-nav-item ${activeTab === "grocery-bom" ? "active" : ""}`}
             onClick={() => {
               setActiveQuotation(null);
@@ -654,19 +664,6 @@ export default function AdminApp() {
           >
             <Package size={18} style={{ flexShrink: 0 }} />
             <span>Packages & Menu</span>
-          </button>
-
-          <button
-            className={`sidebar-nav-item ${activeTab === "pricing-guide" ? "active" : ""}`}
-            onClick={() => {
-              setActiveQuotation(null);
-              setActiveTab("pricing-guide");
-              if (window.innerWidth <= 768) setIsSidebarOpen(false);
-            }}
-            title="Dev Costing, Market Rates & Client Pitch"
-          >
-            <DollarSign size={18} style={{ flexShrink: 0 }} />
-            <span>Dev Pitch Costing</span>
           </button>
 
           <button
@@ -903,6 +900,26 @@ export default function AdminApp() {
                 </>
               )}
 
+              {activeTab === "financials" && (
+                <>
+                  <div className="page-hero no-print">
+                    <div className="hero-text">
+                      <h1>Financial Performance, Income & Expense Monitoring</h1>
+                      <p>
+                        Track gross contract sales, realized cash flow, uncollected receivables, food procurement BOM costs, staff wages, and net profit margins across your catering events.
+                      </p>
+                    </div>
+                  </div>
+
+                  <FinancialSalesDashboard
+                    quotations={quotations}
+                    activeCompany={activeCompany}
+                    userRole={userRole}
+                    onViewQuote={(q) => setActiveQuotation(q)}
+                  />
+                </>
+              )}
+
               {activeTab === "grocery-bom" && (
                 <>
                   <div className="page-hero no-print">
@@ -983,21 +1000,6 @@ export default function AdminApp() {
                     initialSubTab={packageManagerSubTab}
                     initialBookingDate={prefilledBookingDate}
                   />
-                </>
-              )}
-
-              {activeTab === "pricing-guide" && (
-                <>
-                  <div className="page-hero no-print">
-                    <div className="hero-text">
-                      <h1>Software Development Project Costing & Client Pricing</h1>
-                      <p>
-                        Philippine market benchmarks, scope calculator, milestone payment schedules, and a copyable client proposal for pitching this catering system.
-                      </p>
-                    </div>
-                  </div>
-
-                  <ClientPricingGuide />
                 </>
               )}
 

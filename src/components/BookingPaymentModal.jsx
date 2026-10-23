@@ -15,8 +15,10 @@ import {
   AlertCircle, 
   ShieldCheck, 
   Receipt,
-  FileText
+  FileText,
+  Lock
 } from "lucide-react";
+import { formatTime12Hour } from "../utils/bookingUtils";
 
 const PAYMENT_METHODS = [
   { id: "Cash", label: "Cash Payment", icon: Banknote, color: "#047857", bg: "#ecfdf5", border: "#a7f3d0" },
@@ -36,10 +38,19 @@ export default function BookingPaymentModal({
 }) {
   if (!isOpen || !booking) return null;
 
+  const isCompleted = booking.status === "Completed" || Boolean(booking.isCompleted);
   const grandTotal = Number(booking.grandTotal) || 0;
   const standardDP = Number(booking.downpaymentRequired) || Math.round(grandTotal * 0.5);
   const recordedDeposit = Number(booking.depositAmount) || 0;
   const initialRemainingBalance = Math.max(0, grandTotal - recordedDeposit);
+
+  // When completed, support view tab switching between deposit and final settlement
+  const [viewTab, setViewTab] = useState(() => {
+    if (isCompleted) {
+      return (booking.isFullyPaid || booking.finalPaymentAmount || booking.finalPaymentMethod) ? "ongoing" : "deposit";
+    }
+    return mode === "ongoing" ? "ongoing" : "deposit";
+  });
 
   // Form states for deposit mode
   const [depositAmount, setDepositAmount] = useState(
@@ -79,29 +90,39 @@ export default function BookingPaymentModal({
   // Sync state if booking or mode changes
   useEffect(() => {
     if (booking) {
-      if (mode === "deposit") {
-        setDepositAmount(booking.depositAmount > 0 ? booking.depositAmount : standardDP);
-        setDepositMethod(booking.depositPaymentMethod || "Cash");
-        setDepositRef(booking.depositReference || "");
-        setDepositNotes(booking.depositNotes || "");
-      } else if (mode === "ongoing") {
-        const remaining = Math.max(0, grandTotal - (booking.depositAmount || 0));
-        setIsFullyPaid(booking.isFullyPaid !== undefined ? booking.isFullyPaid : true);
-        setFinalAmount(booking.finalPaymentAmount || remaining);
-        setFinalMethod(booking.finalPaymentMethod || "Cash");
-        setFinalRef(booking.finalPaymentReference || "");
-        setFinalNotes(booking.finalPaymentNotes || "");
+      if (isCompleted) {
+        setViewTab(
+          mode === "deposit" 
+            ? "deposit" 
+            : ((booking.isFullyPaid || booking.finalPaymentAmount || booking.finalPaymentMethod) ? "ongoing" : "deposit")
+        );
+      } else {
+        setViewTab(mode === "ongoing" ? "ongoing" : "deposit");
       }
+
+      setDepositAmount(booking.depositAmount > 0 ? booking.depositAmount : standardDP);
+      setDepositMethod(booking.depositPaymentMethod || "Cash");
+      setDepositRef(booking.depositReference || "");
+      setDepositNotes(booking.depositNotes || "");
+
+      const remaining = Math.max(0, grandTotal - (booking.depositAmount || 0));
+      setIsFullyPaid(booking.isFullyPaid !== undefined ? booking.isFullyPaid : true);
+      setFinalAmount(booking.finalPaymentAmount || remaining);
+      setFinalMethod(booking.finalPaymentMethod || "Cash");
+      setFinalRef(booking.finalPaymentReference || "");
+      setFinalNotes(booking.finalPaymentNotes || "");
       setErrorMsg("");
     }
-  }, [booking, mode]);
+  }, [booking, mode, isCompleted]);
 
   const handleDepositPreset = (percent) => {
+    if (isCompleted) return;
     const val = Math.round(grandTotal * (percent / 100));
     setDepositAmount(val);
   };
 
   const handleOngoingFullyPaidToggle = (checked) => {
+    if (isCompleted) return;
     setIsFullyPaid(checked);
     if (checked) {
       setFinalAmount(initialRemainingBalance);
@@ -110,6 +131,11 @@ export default function BookingPaymentModal({
 
   const handleSubmit = (e) => {
     if (e) e.preventDefault();
+    if (isCompleted) {
+      // Completed bookings are permanently read-only and locked against any payment changes
+      if (onClose) onClose();
+      return;
+    }
     setErrorMsg("");
 
     if (mode === "deposit") {
@@ -158,7 +184,8 @@ export default function BookingPaymentModal({
     }
   };
 
-  const isDepositMode = mode === "deposit";
+  const effectiveMode = isCompleted ? viewTab : mode;
+  const isDepositMode = effectiveMode === "deposit";
   const currentRemainingDepositBalance = Math.max(0, grandTotal - (Number(depositAmount) || 0));
 
   return (
@@ -199,9 +226,11 @@ export default function BookingPaymentModal({
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            background: isDepositMode 
-              ? "linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)" 
-              : "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)"
+            background: isCompleted
+              ? "linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)"
+              : isDepositMode 
+                ? "linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)" 
+                : "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)"
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
@@ -210,26 +239,52 @@ export default function BookingPaymentModal({
                 width: "42px",
                 height: "42px",
                 borderRadius: "10px",
-                background: isDepositMode ? "#047857" : "#d97706",
+                background: isCompleted ? "#7e22ce" : isDepositMode ? "#047857" : "#d97706",
                 color: "#ffffff",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                boxShadow: isDepositMode ? "0 4px 10px rgba(4, 120, 87, 0.25)" : "0 4px 10px rgba(217, 119, 6, 0.25)"
+                boxShadow: isCompleted
+                  ? "0 4px 10px rgba(126, 34, 206, 0.25)"
+                  : isDepositMode 
+                    ? "0 4px 10px rgba(4, 120, 87, 0.25)" 
+                    : "0 4px 10px rgba(217, 119, 6, 0.25)"
               }}
             >
-              {isDepositMode ? <CheckCircle2 size={24} /> : <ShieldCheck size={24} />}
+              {isCompleted ? <Lock size={22} /> : isDepositMode ? <CheckCircle2 size={24} /> : <ShieldCheck size={24} />}
             </div>
             <div>
-              <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "#0f172a" }}>
-                {isDepositMode 
-                  ? "Confirm Booking & Record Deposit Payment" 
-                  : "Verify Payment & Set to Ongoing Event"}
-              </h3>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "#0f172a" }}>
+                  {isCompleted 
+                    ? "Payment Details (Completed Booking • Read-Only)" 
+                    : isDepositMode 
+                      ? "Confirm Booking & Record Deposit Payment" 
+                      : "Verify Payment & Set to Ongoing Event"}
+                </h3>
+                {isCompleted && (
+                  <span style={{
+                    fontSize: "0.68rem",
+                    fontWeight: 800,
+                    color: "#7e22ce",
+                    background: "#f3e8ff",
+                    border: "1px solid #d8b4fe",
+                    padding: "2px 7px",
+                    borderRadius: "999px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px"
+                  }}>
+                    <Lock size={10} /> Locked
+                  </span>
+                )}
+              </div>
               <p style={{ margin: "2px 0 0", fontSize: "0.78rem", color: "#64748b" }}>
-                {isDepositMode 
-                  ? "Input reservation downpayment details, payment method & admin notes to confirm." 
-                  : "Verify full payment settlement and payment method before starting event service."}
+                {isCompleted
+                  ? "This booking is marked Completed. All payment methods, transaction amounts, and financial logs are permanently locked."
+                  : isDepositMode 
+                    ? "Input reservation downpayment details, payment method & admin notes to confirm." 
+                    : "Verify full payment settlement and payment method before starting event service."}
               </p>
             </div>
           </div>
@@ -256,6 +311,87 @@ export default function BookingPaymentModal({
 
         {/* Modal Scrollable Body */}
         <div style={{ padding: "1.25rem 1.5rem", overflowY: "auto", flex: 1 }}>
+          {/* Completed Booking Lock Notice */}
+          {isCompleted && (
+            <div 
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                padding: "0.85rem 1rem",
+                borderRadius: "10px",
+                background: "#faf5ff",
+                border: "1px solid #d8b4fe",
+                color: "#581c87",
+                fontSize: "0.82rem",
+                marginBottom: "1rem"
+              }}
+            >
+              <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#7e22ce", color: "#ffffff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Lock size={16} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <strong style={{ display: "block", color: "#581c87", fontSize: "0.84rem" }}>
+                  🔒 Payment Method Locked & Non-Editable
+                </strong>
+                <span style={{ fontSize: "0.76rem", color: "#6b21a8" }}>
+                  This booking is marked as <strong>Completed</strong>. The recorded payment method ({isDepositMode ? (booking.depositPaymentMethod || "Cash") : (booking.finalPaymentMethod || booking.depositPaymentMethod || "Cash")}) and all financial logs are archived and cannot be edited.
+                </span>
+              </div>
+              <span style={{ fontSize: "0.7rem", fontWeight: 800, background: "#7e22ce", color: "#ffffff", padding: "3px 8px", borderRadius: "6px" }}>
+                READ ONLY
+              </span>
+            </div>
+          )}
+
+          {/* If completed, tab switcher between Deposit & Settlement */}
+          {isCompleted && (
+            <div style={{ display: "flex", gap: "6px", marginBottom: "1.15rem", borderBottom: "1px solid #e2e8f0", paddingBottom: "0.5rem" }}>
+              <button
+                type="button"
+                onClick={() => setViewTab("deposit")}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "0.45rem 0.85rem",
+                  fontSize: "0.78rem",
+                  fontWeight: 800,
+                  borderRadius: "8px",
+                  border: isDepositMode ? "1px solid #a7f3d0" : "1px solid transparent",
+                  background: isDepositMode ? "#ecfdf5" : "transparent",
+                  color: isDepositMode ? "#047857" : "#64748b",
+                  cursor: "pointer"
+                }}
+              >
+                <Banknote size={14} />
+                <span>Deposit Record ({booking.depositPaymentMethod || "Cash"})</span>
+                <Lock size={11} style={{ opacity: 0.6 }} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewTab("ongoing")}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "0.45rem 0.85rem",
+                  fontSize: "0.78rem",
+                  fontWeight: 800,
+                  borderRadius: "8px",
+                  border: !isDepositMode ? "1px solid #fde68a" : "1px solid transparent",
+                  background: !isDepositMode ? "#fffbeb" : "transparent",
+                  color: !isDepositMode ? "#b45309" : "#64748b",
+                  cursor: "pointer"
+                }}
+              >
+                <CheckCircle2 size={14} />
+                <span>Final Settlement ({booking.finalPaymentMethod || booking.depositPaymentMethod || "Cash"})</span>
+                <Lock size={11} style={{ opacity: 0.6 }} />
+              </button>
+            </div>
+          )}
           {/* Quick Booking Info Card */}
           <div 
             style={{
@@ -280,7 +416,7 @@ export default function BookingPaymentModal({
                   )}
                 </div>
                 <div style={{ fontSize: "0.78rem", color: "#64748b", marginTop: "2px" }}>
-                  📅 {booking.eventDate || "TBA"} {booking.eventTime ? `at ${booking.eventTime}` : ""} • 📍 {booking.venueName || "Venue TBA"}
+                  📅 {booking.eventDate || "TBA"} {booking.eventTime ? `at ${formatTime12Hour(booking.eventTime)}` : ""} • 📍 {booking.venueName || "Venue TBA"}
                 </div>
                 <div style={{ fontSize: "0.76rem", color: "#64748b", marginTop: "1px" }}>
                   🍽️ {booking.packageName} ({booking.pax} Guests)
@@ -332,58 +468,65 @@ export default function BookingPaymentModal({
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.4rem" }}>
                   <label style={{ fontSize: "0.82rem", fontWeight: 700, color: "#1e293b" }}>
-                    Deposit Payment Amount (PHP) <span style={{ color: "#dc2626" }}>*</span>
+                    Deposit Payment Amount (PHP) {!isCompleted && <span style={{ color: "#dc2626" }}>*</span>}
                   </label>
-                  <div style={{ display: "flex", gap: "4px" }}>
-                    <button
-                      type="button"
-                      onClick={() => handleDepositPreset(50)}
-                      style={{
-                        background: depositAmount === standardDP ? "#ecfdf5" : "#f1f5f9",
-                        border: `1px solid ${depositAmount === standardDP ? "#047857" : "#cbd5e1"}`,
-                        color: depositAmount === standardDP ? "#047857" : "#475569",
-                        fontSize: "0.7rem",
-                        padding: "2px 8px",
-                        borderRadius: "4px",
-                        fontWeight: 700,
-                        cursor: "pointer"
-                      }}
-                    >
-                      50% (Standard)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDepositPreset(30)}
-                      style={{
-                        background: "#f1f5f9",
-                        border: "1px solid #cbd5e1",
-                        color: "#475569",
-                        fontSize: "0.7rem",
-                        padding: "2px 8px",
-                        borderRadius: "4px",
-                        fontWeight: 700,
-                        cursor: "pointer"
-                      }}
-                    >
-                      30% (Mobilization)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDepositPreset(100)}
-                      style={{
-                        background: "#f1f5f9",
-                        border: "1px solid #cbd5e1",
-                        color: "#475569",
-                        fontSize: "0.7rem",
-                        padding: "2px 8px",
-                        borderRadius: "4px",
-                        fontWeight: 700,
-                        cursor: "pointer"
-                      }}
-                    >
-                      100% (Full Pay)
-                    </button>
-                  </div>
+                  {!isCompleted && (
+                    <div style={{ display: "flex", gap: "4px" }}>
+                      <button
+                        type="button"
+                        onClick={() => handleDepositPreset(50)}
+                        style={{
+                          background: depositAmount === standardDP ? "#ecfdf5" : "#f1f5f9",
+                          border: `1px solid ${depositAmount === standardDP ? "#047857" : "#cbd5e1"}`,
+                          color: depositAmount === standardDP ? "#047857" : "#475569",
+                          fontSize: "0.7rem",
+                          padding: "2px 8px",
+                          borderRadius: "4px",
+                          fontWeight: 700,
+                          cursor: "pointer"
+                        }}
+                      >
+                        50% (Standard)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDepositPreset(30)}
+                        style={{
+                          background: "#f1f5f9",
+                          border: "1px solid #cbd5e1",
+                          color: "#475569",
+                          fontSize: "0.7rem",
+                          padding: "2px 8px",
+                          borderRadius: "4px",
+                          fontWeight: 700,
+                          cursor: "pointer"
+                        }}
+                      >
+                        30% (Mobilization)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDepositPreset(100)}
+                        style={{
+                          background: "#f1f5f9",
+                          border: "1px solid #cbd5e1",
+                          color: "#475569",
+                          fontSize: "0.7rem",
+                          padding: "2px 8px",
+                          borderRadius: "4px",
+                          fontWeight: 700,
+                          cursor: "pointer"
+                        }}
+                      >
+                        100% (Full Pay)
+                      </button>
+                    </div>
+                  )}
+                  {isCompleted && (
+                    <span style={{ fontSize: "0.72rem", color: "#6b21a8", fontWeight: 700, display: "flex", alignItems: "center", gap: "4px" }}>
+                      <Lock size={12} /> Fixed / Recorded Deposit
+                    </span>
+                  )}
                 </div>
 
                 <div style={{ position: "relative" }}>
@@ -396,17 +539,22 @@ export default function BookingPaymentModal({
                     step="any"
                     value={depositAmount}
                     onChange={(e) => setDepositAmount(e.target.value)}
-                    required
+                    required={!isCompleted}
+                    disabled={isCompleted}
+                    readOnly={isCompleted}
                     style={{
                       width: "100%",
                       padding: "0.6rem 0.75rem 0.6rem 2rem",
                       fontSize: "1.1rem",
                       fontWeight: 800,
                       fontFamily: "monospace",
-                      border: "2px solid #cbd5e1",
+                      border: isCompleted ? "2px solid #e2e8f0" : "2px solid #cbd5e1",
                       borderRadius: "8px",
                       outline: "none",
-                      boxSizing: "border-box"
+                      boxSizing: "border-box",
+                      background: isCompleted ? "#f8fafc" : "#ffffff",
+                      color: isCompleted ? "#334155" : "#0f172a",
+                      cursor: isCompleted ? "not-allowed" : "text"
                     }}
                     placeholder="Enter deposit amount"
                   />
@@ -425,9 +573,17 @@ export default function BookingPaymentModal({
 
               {/* Payment Method Selector */}
               <div>
-                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.45rem" }}>
-                  Payment Method Received <span style={{ color: "#dc2626" }}>*</span>
-                </label>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.45rem" }}>
+                  <label style={{ fontSize: "0.82rem", fontWeight: 700, color: "#1e293b" }}>
+                    Payment Method Received {!isCompleted && <span style={{ color: "#dc2626" }}>*</span>}
+                  </label>
+                  {isCompleted && (
+                    <span style={{ fontSize: "0.72rem", color: "#7e22ce", fontWeight: 700, display: "flex", alignItems: "center", gap: "4px" }}>
+                      <Lock size={12} /> Payment Method Locked
+                    </span>
+                  )}
+                </div>
+
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "0.5rem" }}>
                   {PAYMENT_METHODS.map((pm) => {
                     const IconComponent = pm.icon;
@@ -437,7 +593,9 @@ export default function BookingPaymentModal({
                       <button
                         key={pm.id}
                         type="button"
-                        onClick={() => setDepositMethod(pm.id)}
+                        disabled={isCompleted}
+                        onClick={() => !isCompleted && setDepositMethod(pm.id)}
+                        title={isCompleted ? `Locked: Booking is Completed (${pm.id})` : pm.label}
                         style={{
                           display: "flex",
                           alignItems: "center",
@@ -445,37 +603,52 @@ export default function BookingPaymentModal({
                           padding: "0.55rem 0.75rem",
                           borderRadius: "8px",
                           border: isSelected 
-                            ? `2px solid ${pm.color}` 
-                            : isCash 
+                            ? (isCompleted ? "2px solid #7e22ce" : `2px solid ${pm.color}`)
+                            : isCash && !isCompleted
                               ? "2px solid #a7f3d0" 
                               : "1px solid #e2e8f0",
-                          background: isSelected ? pm.bg : isCash ? "#f0fdf4" : "#ffffff",
-                          cursor: "pointer",
+                          background: isSelected 
+                            ? (isCompleted ? "#faf5ff" : pm.bg) 
+                            : isCash && !isCompleted ? "#f0fdf4" : "#ffffff",
+                          cursor: isCompleted ? "not-allowed" : "pointer",
+                          opacity: isCompleted && !isSelected ? 0.35 : 1,
+                          filter: isCompleted && !isSelected ? "grayscale(70%)" : "none",
                           textAlign: "left",
                           transition: "all 0.15s ease",
                           position: "relative"
                         }}
                       >
-                        <div style={{ color: pm.color, display: "flex", alignItems: "center" }}>
+                        <div style={{ color: isSelected && isCompleted ? "#7e22ce" : pm.color, display: "flex", alignItems: "center" }}>
                           <IconComponent size={18} />
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: "0.78rem", fontWeight: 800, color: isSelected ? pm.color : "#1e293b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          <div style={{ fontSize: "0.78rem", fontWeight: 800, color: isSelected ? (isCompleted ? "#7e22ce" : pm.color) : "#1e293b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                             {pm.id}
                           </div>
-                          {isCash && (
+                          {isCash && !isCompleted && (
                             <div style={{ fontSize: "0.62rem", color: "#047857", fontWeight: 700 }}>
                               Handover / On-site
                             </div>
                           )}
+                          {isSelected && isCompleted && (
+                            <div style={{ fontSize: "0.62rem", color: "#7e22ce", fontWeight: 800, display: "flex", alignItems: "center", gap: "2px" }}>
+                              <Lock size={9} /> Verified & Locked
+                            </div>
+                          )}
                         </div>
                         {isSelected && (
-                          <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: pm.color }} />
+                          <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: isCompleted ? "#7e22ce" : pm.color }} />
                         )}
                       </button>
                     );
                   })}
                 </div>
+
+                {isCompleted && (
+                  <div style={{ fontSize: "0.74rem", color: "#6b21a8", marginTop: "6px", fontWeight: 600, display: "flex", alignItems: "center", gap: "4px" }}>
+                    <Lock size={12} /> Deposit payment method is locked to <strong>{depositMethod}</strong> and cannot be edited because this booking is Completed.
+                  </div>
+                )}
               </div>
 
               {/* Payment Date & Reference */}
@@ -489,13 +662,18 @@ export default function BookingPaymentModal({
                       type="date"
                       value={depositDate}
                       onChange={(e) => setDepositDate(e.target.value)}
+                      disabled={isCompleted}
+                      readOnly={isCompleted}
                       style={{
                         width: "100%",
                         padding: "0.45rem 0.65rem",
                         fontSize: "0.82rem",
                         border: "1px solid #cbd5e1",
                         borderRadius: "8px",
-                        boxSizing: "border-box"
+                        boxSizing: "border-box",
+                        background: isCompleted ? "#f8fafc" : "#ffffff",
+                        color: isCompleted ? "#334155" : "#0f172a",
+                        cursor: isCompleted ? "not-allowed" : "text"
                       }}
                     />
                   </div>
@@ -509,6 +687,8 @@ export default function BookingPaymentModal({
                     type="text"
                     value={depositRef}
                     onChange={(e) => setDepositRef(e.target.value)}
+                    disabled={isCompleted}
+                    readOnly={isCompleted}
                     placeholder={depositMethod === "Cash" ? "e.g. Cash OR #1042, Store Receipt" : "e.g. GCash Ref #, Bank Slip #"}
                     style={{
                       width: "100%",
@@ -516,7 +696,10 @@ export default function BookingPaymentModal({
                       fontSize: "0.82rem",
                       border: "1px solid #cbd5e1",
                       borderRadius: "8px",
-                      boxSizing: "border-box"
+                      boxSizing: "border-box",
+                      background: isCompleted ? "#f8fafc" : "#ffffff",
+                      color: isCompleted ? "#334155" : "#0f172a",
+                      cursor: isCompleted ? "not-allowed" : "text"
                     }}
                   />
                 </div>
@@ -532,6 +715,8 @@ export default function BookingPaymentModal({
                   rows={2}
                   value={depositNotes}
                   onChange={(e) => setDepositNotes(e.target.value)}
+                  disabled={isCompleted}
+                  readOnly={isCompleted}
                   placeholder="e.g. Received cash deposit at office. Issued official acknowledgement. Balance due on event date before buffet ingress."
                   style={{
                     width: "100%",
@@ -541,49 +726,79 @@ export default function BookingPaymentModal({
                     borderRadius: "8px",
                     resize: "vertical",
                     boxSizing: "border-box",
-                    fontFamily: "inherit"
+                    fontFamily: "inherit",
+                    background: isCompleted ? "#f8fafc" : "#ffffff",
+                    color: isCompleted ? "#334155" : "#0f172a",
+                    cursor: isCompleted ? "not-allowed" : "text"
                   }}
                 />
               </div>
 
               {/* Modal Actions */}
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "0.5rem", borderTop: "1px solid #f1f5f9", paddingTop: "1rem" }}>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  style={{
-                    padding: "0.55rem 1.15rem",
-                    borderRadius: "8px",
-                    border: "1px solid #cbd5e1",
-                    background: "#ffffff",
-                    color: "#475569",
-                    fontWeight: 700,
-                    fontSize: "0.85rem",
-                    cursor: "pointer"
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  style={{
-                    padding: "0.55rem 1.25rem",
-                    borderRadius: "8px",
-                    border: "none",
-                    background: "#047857",
-                    color: "#ffffff",
-                    fontWeight: 800,
-                    fontSize: "0.85rem",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    boxShadow: "0 4px 12px rgba(4, 120, 87, 0.25)"
-                  }}
-                >
-                  <CheckCircle2 size={16} />
-                  <span>Confirm Booking & Save Deposit</span>
-                </button>
+              <div style={{ display: "flex", justifyContent: isCompleted ? "space-between" : "flex-end", alignItems: "center", gap: "0.75rem", marginTop: "0.5rem", borderTop: "1px solid #f1f5f9", paddingTop: "1rem" }}>
+                {isCompleted ? (
+                  <>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#6b21a8", fontSize: "0.8rem", fontWeight: 700 }}>
+                      <Lock size={15} />
+                      <span>Booking Completed • Payment method & records cannot be edited</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      style={{
+                        padding: "0.55rem 1.35rem",
+                        borderRadius: "8px",
+                        border: "1px solid #cbd5e1",
+                        background: "#ffffff",
+                        color: "#334155",
+                        fontWeight: 700,
+                        fontSize: "0.85rem",
+                        cursor: "pointer"
+                      }}
+                    >
+                      Close Window
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      style={{
+                        padding: "0.55rem 1.15rem",
+                        borderRadius: "8px",
+                        border: "1px solid #cbd5e1",
+                        background: "#ffffff",
+                        color: "#475569",
+                        fontWeight: 700,
+                        fontSize: "0.85rem",
+                        cursor: "pointer"
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      style={{
+                        padding: "0.55rem 1.25rem",
+                        borderRadius: "8px",
+                        border: "none",
+                        background: "#047857",
+                        color: "#ffffff",
+                        fontWeight: 800,
+                        fontSize: "0.85rem",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        boxShadow: "0 4px 12px rgba(4, 120, 87, 0.25)"
+                      }}
+                    >
+                      <CheckCircle2 size={16} />
+                      <span>Confirm Booking & Save Deposit</span>
+                    </button>
+                  </>
+                )}
               </div>
             </form>
           )}
@@ -596,15 +811,15 @@ export default function BookingPaymentModal({
               {/* Previous Payment Summary Card */}
               <div 
                 style={{
-                  background: "#fffbeb",
-                  border: "1px solid #fde68a",
+                  background: isCompleted ? "#faf5ff" : "#fffbeb",
+                  border: isCompleted ? "1px solid #e9d5ff" : "1px solid #fde68a",
                   borderRadius: "10px",
                   padding: "0.85rem 1rem",
                   fontSize: "0.8rem"
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
-                  <span style={{ fontWeight: 800, color: "#92400e" }}>
+                  <span style={{ fontWeight: 800, color: isCompleted ? "#6b21a8" : "#92400e" }}>
                     📋 Recorded Reservation Deposit:
                   </span>
                   <span style={{ fontWeight: 800, color: "#047857", fontFamily: "monospace", fontSize: "0.9rem" }}>
@@ -612,17 +827,17 @@ export default function BookingPaymentModal({
                   </span>
                 </div>
                 {booking.depositPaidAt && (
-                  <div style={{ fontSize: "0.72rem", color: "#78350f" }}>
+                  <div style={{ fontSize: "0.72rem", color: isCompleted ? "#7e22ce" : "#78350f" }}>
                     Paid on {new Date(booking.depositPaidAt).toLocaleDateString()} {booking.depositReference ? `• Ref: ${booking.depositReference}` : ""}
                   </div>
                 )}
                 {booking.depositNotes && (
-                  <div style={{ fontSize: "0.72rem", color: "#92400e", fontStyle: "italic", marginTop: "3px" }}>
+                  <div style={{ fontSize: "0.72rem", color: isCompleted ? "#6b21a8" : "#92400e", fontStyle: "italic", marginTop: "3px" }}>
                     "{booking.depositNotes}"
                   </div>
                 )}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "6px", borderTop: "1px dashed #fcd34d", paddingTop: "5px" }}>
-                  <span style={{ fontWeight: 700, color: "#78350f" }}>Remaining Balance Before Event Service:</span>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "6px", borderTop: `1px dashed ${isCompleted ? "#d8b4fe" : "#fcd34d"}`, paddingTop: "5px" }}>
+                  <span style={{ fontWeight: 700, color: isCompleted ? "#6b21a8" : "#78350f" }}>Remaining Balance Before Event Service:</span>
                   <strong style={{ color: initialRemainingBalance === 0 ? "#047857" : "#b45309", fontFamily: "monospace", fontSize: "0.95rem" }}>
                     ₱{initialRemainingBalance.toLocaleString()}
                   </strong>
@@ -631,27 +846,42 @@ export default function BookingPaymentModal({
 
               {/* Full Payment Verification Toggle */}
               <div>
-                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.45rem" }}>
-                  Payment Verification Status <span style={{ color: "#dc2626" }}>*</span>
-                </label>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.45rem" }}>
+                  <label style={{ fontSize: "0.82rem", fontWeight: 700, color: "#1e293b" }}>
+                    Payment Verification Status {!isCompleted && <span style={{ color: "#dc2626" }}>*</span>}
+                  </label>
+                  {isCompleted && (
+                    <span style={{ fontSize: "0.72rem", color: "#7e22ce", fontWeight: 700, display: "flex", alignItems: "center", gap: "4px" }}>
+                      <Lock size={12} /> Status Locked
+                    </span>
+                  )}
+                </div>
+
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
                   <button
                     type="button"
+                    disabled={isCompleted}
                     onClick={() => handleOngoingFullyPaidToggle(true)}
                     style={{
                       display: "flex",
                       flexDirection: "column",
                       padding: "0.75rem 1rem",
                       borderRadius: "10px",
-                      border: isFullyPaid ? "2px solid #047857" : "1px solid #cbd5e1",
-                      background: isFullyPaid ? "#ecfdf5" : "#ffffff",
-                      cursor: "pointer",
+                      border: isFullyPaid 
+                        ? (isCompleted ? "2px solid #7e22ce" : "2px solid #047857") 
+                        : "1px solid #cbd5e1",
+                      background: isFullyPaid 
+                        ? (isCompleted ? "#faf5ff" : "#ecfdf5") 
+                        : "#ffffff",
+                      cursor: isCompleted ? "not-allowed" : "pointer",
+                      opacity: isCompleted && !isFullyPaid ? 0.45 : 1,
                       textAlign: "left"
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px", color: isFullyPaid ? "#047857" : "#475569", fontWeight: 800, fontSize: "0.85rem" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", color: isFullyPaid ? (isCompleted ? "#7e22ce" : "#047857") : "#475569", fontWeight: 800, fontSize: "0.85rem" }}>
                       <CheckCircle2 size={18} />
                       <span>Fully Paid (100% Settled)</span>
+                      {isCompleted && isFullyPaid && <Lock size={12} />}
                     </div>
                     <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: "3px" }}>
                       All balance cleared. Zero remaining balance.
@@ -660,21 +890,28 @@ export default function BookingPaymentModal({
 
                   <button
                     type="button"
+                    disabled={isCompleted}
                     onClick={() => handleOngoingFullyPaidToggle(false)}
                     style={{
                       display: "flex",
                       flexDirection: "column",
                       padding: "0.75rem 1rem",
                       borderRadius: "10px",
-                      border: !isFullyPaid ? "2px solid #d97706" : "1px solid #cbd5e1",
-                      background: !isFullyPaid ? "#fffbeb" : "#ffffff",
-                      cursor: "pointer",
+                      border: !isFullyPaid 
+                        ? (isCompleted ? "2px solid #7e22ce" : "2px solid #d97706") 
+                        : "1px solid #cbd5e1",
+                      background: !isFullyPaid 
+                        ? (isCompleted ? "#faf5ff" : "#fffbeb") 
+                        : "#ffffff",
+                      cursor: isCompleted ? "not-allowed" : "pointer",
+                      opacity: isCompleted && isFullyPaid ? 0.45 : 1,
                       textAlign: "left"
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px", color: !isFullyPaid ? "#b45309" : "#475569", fontWeight: 800, fontSize: "0.85rem" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", color: !isFullyPaid ? (isCompleted ? "#7e22ce" : "#b45309") : "#475569", fontWeight: 800, fontSize: "0.85rem" }}>
                       <Clock size={18} />
                       <span>Partial / Balance Pending</span>
+                      {isCompleted && !isFullyPaid && <Lock size={12} />}
                     </div>
                     <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: "3px" }}>
                       Balance to be collected post-event or during egress.
@@ -685,9 +922,17 @@ export default function BookingPaymentModal({
 
               {/* Payment Method Used for Balance / Settlement */}
               <div>
-                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.45rem" }}>
-                  Payment Method Used for Balance / Verification <span style={{ color: "#dc2626" }}>*</span>
-                </label>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.45rem" }}>
+                  <label style={{ fontSize: "0.82rem", fontWeight: 700, color: "#1e293b" }}>
+                    Payment Method Used for Balance / Settlement {!isCompleted && <span style={{ color: "#dc2626" }}>*</span>}
+                  </label>
+                  {isCompleted && (
+                    <span style={{ fontSize: "0.72rem", color: "#7e22ce", fontWeight: 700, display: "flex", alignItems: "center", gap: "4px" }}>
+                      <Lock size={12} /> Payment Method Locked
+                    </span>
+                  )}
+                </div>
+
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "0.5rem" }}>
                   {PAYMENT_METHODS.map((pm) => {
                     const IconComponent = pm.icon;
@@ -697,7 +942,9 @@ export default function BookingPaymentModal({
                       <button
                         key={pm.id}
                         type="button"
-                        onClick={() => setFinalMethod(pm.id)}
+                        disabled={isCompleted}
+                        onClick={() => !isCompleted && setFinalMethod(pm.id)}
+                        title={isCompleted ? `Locked: Booking is Completed (${pm.id})` : pm.label}
                         style={{
                           display: "flex",
                           alignItems: "center",
@@ -705,43 +952,59 @@ export default function BookingPaymentModal({
                           padding: "0.55rem 0.75rem",
                           borderRadius: "8px",
                           border: isSelected 
-                            ? `2px solid ${pm.color}` 
-                            : isCash 
+                            ? (isCompleted ? "2px solid #7e22ce" : `2px solid ${pm.color}`)
+                            : isCash && !isCompleted
                               ? "2px solid #a7f3d0" 
                               : "1px solid #e2e8f0",
-                          background: isSelected ? pm.bg : isCash ? "#f0fdf4" : "#ffffff",
-                          cursor: "pointer",
+                          background: isSelected 
+                            ? (isCompleted ? "#faf5ff" : pm.bg) 
+                            : isCash && !isCompleted ? "#f0fdf4" : "#ffffff",
+                          cursor: isCompleted ? "not-allowed" : "pointer",
+                          opacity: isCompleted && !isSelected ? 0.35 : 1,
+                          filter: isCompleted && !isSelected ? "grayscale(70%)" : "none",
                           textAlign: "left",
-                          transition: "all 0.15s ease"
+                          transition: "all 0.15s ease",
+                          position: "relative"
                         }}
                       >
-                        <div style={{ color: pm.color, display: "flex", alignItems: "center" }}>
+                        <div style={{ color: isSelected && isCompleted ? "#7e22ce" : pm.color, display: "flex", alignItems: "center" }}>
                           <IconComponent size={18} />
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: "0.78rem", fontWeight: 800, color: isSelected ? pm.color : "#1e293b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          <div style={{ fontSize: "0.78rem", fontWeight: 800, color: isSelected ? (isCompleted ? "#7e22ce" : pm.color) : "#1e293b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                             {pm.id}
                           </div>
-                          {isCash && (
+                          {isCash && !isCompleted && (
                             <div style={{ fontSize: "0.62rem", color: "#047857", fontWeight: 700 }}>
                               Cash Settlement
                             </div>
                           )}
+                          {isSelected && isCompleted && (
+                            <div style={{ fontSize: "0.62rem", color: "#7e22ce", fontWeight: 800, display: "flex", alignItems: "center", gap: "2px" }}>
+                              <Lock size={9} /> Verified & Locked
+                            </div>
+                          )}
                         </div>
                         {isSelected && (
-                          <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: pm.color }} />
+                          <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: isCompleted ? "#7e22ce" : pm.color }} />
                         )}
                       </button>
                     );
                   })}
                 </div>
+
+                {isCompleted && (
+                  <div style={{ fontSize: "0.74rem", color: "#6b21a8", marginTop: "6px", fontWeight: 600, display: "flex", alignItems: "center", gap: "4px" }}>
+                    <Lock size={12} /> Final settlement payment method is locked to <strong>{finalMethod}</strong> and cannot be edited because this booking is Completed.
+                  </div>
+                )}
               </div>
 
               {/* Balance Amount Paid & Date */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
                 <div>
                   <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.3rem" }}>
-                    {isFullyPaid ? "Settled Balance Amount (PHP)" : "Amount Paid Today (PHP)"}
+                    {isFullyPaid ? "Settled Balance Amount (PHP)" : "Amount Paid (PHP)"}
                   </label>
                   <div style={{ position: "relative" }}>
                     <span style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", fontWeight: 800, color: "#64748b" }}>
@@ -753,6 +1016,8 @@ export default function BookingPaymentModal({
                       step="any"
                       value={finalAmount}
                       onChange={(e) => setFinalAmount(e.target.value)}
+                      disabled={isCompleted}
+                      readOnly={isCompleted}
                       style={{
                         width: "100%",
                         padding: "0.45rem 0.65rem 0.45rem 1.8rem",
@@ -761,7 +1026,10 @@ export default function BookingPaymentModal({
                         fontFamily: "monospace",
                         border: "1px solid #cbd5e1",
                         borderRadius: "8px",
-                        boxSizing: "border-box"
+                        boxSizing: "border-box",
+                        background: isCompleted ? "#f8fafc" : "#ffffff",
+                        color: isCompleted ? "#334155" : "#0f172a",
+                        cursor: isCompleted ? "not-allowed" : "text"
                       }}
                     />
                   </div>
@@ -775,13 +1043,18 @@ export default function BookingPaymentModal({
                     type="date"
                     value={finalDate}
                     onChange={(e) => setFinalDate(e.target.value)}
+                    disabled={isCompleted}
+                    readOnly={isCompleted}
                     style={{
                       width: "100%",
                       padding: "0.45rem 0.65rem",
                       fontSize: "0.82rem",
                       border: "1px solid #cbd5e1",
                       borderRadius: "8px",
-                      boxSizing: "border-box"
+                      boxSizing: "border-box",
+                      background: isCompleted ? "#f8fafc" : "#ffffff",
+                      color: isCompleted ? "#334155" : "#0f172a",
+                      cursor: isCompleted ? "not-allowed" : "text"
                     }}
                   />
                 </div>
@@ -796,6 +1069,8 @@ export default function BookingPaymentModal({
                   type="text"
                   value={finalRef}
                   onChange={(e) => setFinalRef(e.target.value)}
+                  disabled={isCompleted}
+                  readOnly={isCompleted}
                   placeholder={finalMethod === "Cash" ? "e.g. Cash collected on-site by Head Waiter / OR #5819" : "e.g. Bank Confirmation / GCash Reference"}
                   style={{
                     width: "100%",
@@ -803,7 +1078,10 @@ export default function BookingPaymentModal({
                     fontSize: "0.82rem",
                     border: "1px solid #cbd5e1",
                     borderRadius: "8px",
-                    boxSizing: "border-box"
+                    boxSizing: "border-box",
+                    background: isCompleted ? "#f8fafc" : "#ffffff",
+                    color: isCompleted ? "#334155" : "#0f172a",
+                    cursor: isCompleted ? "not-allowed" : "text"
                   }}
                 />
               </div>
@@ -818,6 +1096,8 @@ export default function BookingPaymentModal({
                   rows={2}
                   value={finalNotes}
                   onChange={(e) => setFinalNotes(e.target.value)}
+                  disabled={isCompleted}
+                  readOnly={isCompleted}
                   placeholder="e.g. Full cash payment verified by Head Coordinator prior to food service. Ingress completed and buffet ready for presentation."
                   style={{
                     width: "100%",
@@ -827,49 +1107,79 @@ export default function BookingPaymentModal({
                     borderRadius: "8px",
                     resize: "vertical",
                     boxSizing: "border-box",
-                    fontFamily: "inherit"
+                    fontFamily: "inherit",
+                    background: isCompleted ? "#f8fafc" : "#ffffff",
+                    color: isCompleted ? "#334155" : "#0f172a",
+                    cursor: isCompleted ? "not-allowed" : "text"
                   }}
                 />
               </div>
 
               {/* Modal Actions */}
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "0.5rem", borderTop: "1px solid #f1f5f9", paddingTop: "1rem" }}>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  style={{
-                    padding: "0.55rem 1.15rem",
-                    borderRadius: "8px",
-                    border: "1px solid #cbd5e1",
-                    background: "#ffffff",
-                    color: "#475569",
-                    fontWeight: 700,
-                    fontSize: "0.85rem",
-                    cursor: "pointer"
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  style={{
-                    padding: "0.55rem 1.25rem",
-                    borderRadius: "8px",
-                    border: "none",
-                    background: "#d97706",
-                    color: "#ffffff",
-                    fontWeight: 800,
-                    fontSize: "0.85rem",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    boxShadow: "0 4px 12px rgba(217, 119, 6, 0.25)"
-                  }}
-                >
-                  <ShieldCheck size={16} />
-                  <span>Verify Payment & Set to Ongoing</span>
-                </button>
+              <div style={{ display: "flex", justifyContent: isCompleted ? "space-between" : "flex-end", alignItems: "center", gap: "0.75rem", marginTop: "0.5rem", borderTop: "1px solid #f1f5f9", paddingTop: "1rem" }}>
+                {isCompleted ? (
+                  <>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#6b21a8", fontSize: "0.8rem", fontWeight: 700 }}>
+                      <Lock size={15} />
+                      <span>Booking Completed • Payment method & records cannot be edited</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      style={{
+                        padding: "0.55rem 1.35rem",
+                        borderRadius: "8px",
+                        border: "1px solid #cbd5e1",
+                        background: "#ffffff",
+                        color: "#334155",
+                        fontWeight: 700,
+                        fontSize: "0.85rem",
+                        cursor: "pointer"
+                      }}
+                    >
+                      Close Window
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      style={{
+                        padding: "0.55rem 1.15rem",
+                        borderRadius: "8px",
+                        border: "1px solid #cbd5e1",
+                        background: "#ffffff",
+                        color: "#475569",
+                        fontWeight: 700,
+                        fontSize: "0.85rem",
+                        cursor: "pointer"
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      style={{
+                        padding: "0.55rem 1.25rem",
+                        borderRadius: "8px",
+                        border: "none",
+                        background: "#d97706",
+                        color: "#ffffff",
+                        fontWeight: 800,
+                        fontSize: "0.85rem",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        boxShadow: "0 4px 12px rgba(217, 119, 6, 0.25)"
+                      }}
+                    >
+                      <ShieldCheck size={16} />
+                      <span>Verify Payment & Set to Ongoing</span>
+                    </button>
+                  </>
+                )}
               </div>
             </form>
           )}

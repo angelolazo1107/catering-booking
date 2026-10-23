@@ -1,5 +1,8 @@
 import { 
   CATERING_PACKAGES as DEFAULT_PACKAGES, 
+  FOOD_TRAY_PACKAGES,
+  PICA_PICA_PACKAGES,
+  GRAZING_TABLE_PACKAGES,
   DISH_MENU_OPTIONS as DEFAULT_DISHES, 
   CATERING_ADDONS as DEFAULT_ADDONS 
 } from "../data/cateringData";
@@ -72,19 +75,35 @@ export async function checkBackendStatus() {
   };
 }
 
+function ensureFoodTrayPackages(pkgs) {
+  if (!Array.isArray(pkgs) || pkgs.length === 0) return DEFAULT_PACKAGES;
+  let result = [...pkgs];
+  if (!result.some(p => p.serviceType === "food_tray" || p.id?.startsWith("food_tray"))) {
+    result.push(...FOOD_TRAY_PACKAGES);
+  }
+  if (!result.some(p => p.serviceType === "pica_pica" || p.id?.startsWith("pica_pica"))) {
+    result.push(...PICA_PICA_PACKAGES);
+  }
+  if (!result.some(p => p.serviceType === "grazing_table" || p.id?.startsWith("grazing_"))) {
+    result.push(...GRAZING_TABLE_PACKAGES);
+  }
+  return result;
+}
+
 // --- PACKAGES ---
 export async function getPackages() {
   // 1. Try Live Cloud Firestore (Accessible on all hostings & domains)
   try {
     const cloudPkgs = await getPackagesFromFirestore();
     if (Array.isArray(cloudPkgs) && cloudPkgs.length > 0) {
-      localStorage.setItem(STORAGE_KEYS.PACKAGES, JSON.stringify(cloudPkgs));
-      return cloudPkgs;
+      const merged = ensureFoodTrayPackages(cloudPkgs);
+      localStorage.setItem(STORAGE_KEYS.PACKAGES, JSON.stringify(merged));
+      return merged;
     }
     // If Firestore collection is empty, seed defaults and local additions to cloud
     if (cloudPkgs !== null && Array.isArray(cloudPkgs) && cloudPkgs.length === 0) {
       const stored = getLocalPackages();
-      const toSeed = (stored && stored.length > 0) ? stored : DEFAULT_PACKAGES;
+      const toSeed = (stored && stored.length > 0) ? ensureFoodTrayPackages(stored) : DEFAULT_PACKAGES;
       for (const p of toSeed) {
         await savePackageToFirestore(p);
       }
@@ -101,8 +120,9 @@ export async function getPackages() {
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
-          localStorage.setItem(STORAGE_KEYS.PACKAGES, JSON.stringify(data));
-          return data;
+          const merged = ensureFoodTrayPackages(data);
+          localStorage.setItem(STORAGE_KEYS.PACKAGES, JSON.stringify(merged));
+          return merged;
         }
       }
     } catch (err) {}
@@ -110,19 +130,48 @@ export async function getPackages() {
 
   // 3. Try LocalStorage
   const stored = getLocalPackages();
-  if (stored && stored.length > 0) return stored;
+  if (stored && stored.length > 0) {
+    const merged = ensureFoodTrayPackages(stored);
+    localStorage.setItem(STORAGE_KEYS.PACKAGES, JSON.stringify(merged));
+    return merged;
+  }
 
   // 4. Fallback to default seed packages
   return DEFAULT_PACKAGES;
 }
 
+export async function syncPlatablePackages() {
+  try {
+    for (const p of DEFAULT_PACKAGES) {
+      await savePackageToFirestore(p);
+    }
+    localStorage.setItem(STORAGE_KEYS.PACKAGES, JSON.stringify(DEFAULT_PACKAGES));
+    return DEFAULT_PACKAGES;
+  } catch (err) {
+    console.warn("Failed to manually sync Platable packages:", err);
+    localStorage.setItem(STORAGE_KEYS.PACKAGES, JSON.stringify(DEFAULT_PACKAGES));
+    return DEFAULT_PACKAGES;
+  }
+}
+
 export async function savePackage(pkg) {
+  const isFoodTray = pkg.serviceType === "food_tray" || pkg.id?.startsWith("food_tray");
+  const isPicaPica = pkg.serviceType === "pica_pica" || pkg.id?.startsWith("pica_pica");
+  const isGrazing = pkg.serviceType === "grazing_table" || pkg.id?.startsWith("grazing_");
+  const serviceType = pkg.serviceType || (isFoodTray ? "food_tray" : isPicaPica ? "pica_pica" : isGrazing ? "grazing_table" : "buffet");
+  const prefix = isFoodTray ? "food_tray_" : isPicaPica ? "pica_pica_" : isGrazing ? "grazing_" : "pkg_";
+  const defaultMinPax = isFoodTray ? 10 : (isPicaPica ? 50 : (isGrazing ? 100 : 50));
+
   const pkgToSave = {
     ...pkg,
-    id: pkg.id || "pkg_" + Date.now().toString(36),
+    id: pkg.id || prefix + Date.now().toString(36),
+    serviceType,
     pricePerPax: Number(pkg.pricePerPax) || 0,
-    minPax: Number(pkg.minPax) || 50,
-    startingPrice: (Number(pkg.pricePerPax) || 0) * (Number(pkg.minPax) || 50),
+    price: pkg.price !== undefined ? Number(pkg.price) : undefined,
+    minPax: Number(pkg.minPax) || defaultMinPax,
+    maxPax: pkg.maxPax ? Number(pkg.maxPax) : undefined,
+    paxRange: pkg.paxRange || undefined,
+    startingPrice: pkg.price ? Number(pkg.price) : ((Number(pkg.pricePerPax) || 0) * (Number(pkg.minPax) || defaultMinPax)),
     courses: pkg.courses || { beef: 1, pork: 1, chicken: 1, noodlesOrVeg: 1, rice: 1, dessert: 1, drinks: 1 },
     inclusions: Array.isArray(pkg.inclusions) ? pkg.inclusions : []
   };
@@ -193,6 +242,24 @@ function getLocalPackages() {
   return null;
 }
 
+function ensureSodaInDishes(dishObj) {
+  if (!dishObj) return dishObj;
+  if (!dishObj.drinks) dishObj.drinks = [];
+  if (!dishObj.drinks.some(d => d.name?.toLowerCase().includes("soda") || d.name?.toLowerCase().includes("coke"))) {
+    dishObj.drinks.push({
+      id: "dr5",
+      name: "Soda (Coke)",
+      tier: "regular",
+      description: "Ice-cold Coca-Cola Soda (Bottomless)"
+    });
+  }
+  if (!dishObj.sliders || dishObj.sliders.length === 0) dishObj.sliders = DEFAULT_DISHES.sliders;
+  if (!dishObj.canapes || dishObj.canapes.length === 0) dishObj.canapes = DEFAULT_DISHES.canapes;
+  if (!dishObj.fingerFood || dishObj.fingerFood.length === 0) dishObj.fingerFood = DEFAULT_DISHES.fingerFood;
+  if (!dishObj.miniDesserts || dishObj.miniDesserts.length === 0) dishObj.miniDesserts = DEFAULT_DISHES.miniDesserts;
+  return dishObj;
+}
+
 // --- DISHES ---
 export async function getDishes() {
   // 1. Try Cloud Firestore
@@ -203,6 +270,7 @@ export async function getDishes() {
       && cloudDishes?.dessert?.some(d => d.name === "Mango Tapioca");
 
     if (cloudDishes && Object.keys(cloudDishes).length > 0 && hasPlatableMenu) {
+      ensureSodaInDishes(cloudDishes);
       localStorage.setItem(STORAGE_KEYS.DISHES, JSON.stringify(cloudDishes));
       return cloudDishes;
     }
@@ -214,6 +282,7 @@ export async function getDishes() {
           await saveDishToFirestore({ ...d, category: cat });
         }
       }
+      ensureSodaInDishes(DEFAULT_DISHES);
       localStorage.setItem(STORAGE_KEYS.DISHES, JSON.stringify(DEFAULT_DISHES));
       return DEFAULT_DISHES;
     }
@@ -228,6 +297,7 @@ export async function getDishes() {
       if (res.ok) {
         const data = await res.json();
         if (data && Object.keys(data).length > 0) {
+          ensureSodaInDishes(data);
           localStorage.setItem(STORAGE_KEYS.DISHES, JSON.stringify(data));
           return data;
         }
@@ -243,10 +313,15 @@ export async function getDishes() {
       const hasPlatable = parsed?.chicken?.some(d => d.name === "Palatable Fried Chicken")
         && parsed?.noodlesOrVeg?.some(d => d.name === "Creamy Spaghetti")
         && parsed?.dessert?.some(d => d.name === "Mango Tapioca");
-      if (parsed && Object.keys(parsed).length > 0 && hasPlatable) return parsed;
+      if (parsed && Object.keys(parsed).length > 0 && hasPlatable) {
+        ensureSodaInDishes(parsed);
+        localStorage.setItem(STORAGE_KEYS.DISHES, JSON.stringify(parsed));
+        return parsed;
+      }
     }
   } catch (e) {}
 
+  ensureSodaInDishes(DEFAULT_DISHES);
   localStorage.setItem(STORAGE_KEYS.DISHES, JSON.stringify(DEFAULT_DISHES));
   return DEFAULT_DISHES;
 }

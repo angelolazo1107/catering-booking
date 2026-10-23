@@ -18,12 +18,14 @@ import {
   ShieldCheck,
   RefreshCw,
 } from "lucide-react";
-import { EVENT_TYPES, DELIVERY_LOCATIONS, getDishUpgradePrice, getPackageCourseAllowances } from "../data/cateringData";
+import { EVENT_TYPES, DELIVERY_LOCATIONS, getDishUpgradePrice, getPackageCourseAllowances, CONFERENCE_MEAL_RATES } from "../data/cateringData";
 import { syncPlatableDishes } from "../services/backendService";
 import { 
   formatBookingReference, 
   getConfirmedBookingsCountForDate, 
-  MAX_CONFIRMED_BOOKINGS_PER_DAY 
+  MAX_CONFIRMED_BOOKINGS_PER_DAY,
+  formatTime12Hour,
+  getConferenceEndDate
 } from "../utils/bookingUtils";
 
 export default function AdminPackageManager({
@@ -45,6 +47,7 @@ export default function AdminPackageManager({
   initialBookingDate = null
 }) {
   const [activeSubTab, setActiveSubTab] = useState(initialSubTab || "packages"); // "packages", "dishes", "addons", "new-booking"
+  const [packageCategoryFilter, setPackageCategoryFilter] = useState("all"); // "all", "buffet", "food_tray"
 
   useEffect(() => {
     if (initialSubTab) setActiveSubTab(initialSubTab);
@@ -76,11 +79,13 @@ export default function AdminPackageManager({
     eventTime: "18:00",
     venueName: "",
     venueAddress: "",
-    packageId: packages[0]?.id || "royal_premiere",
+    packageId: packages[0]?.id || "package_1",
     pax: 100,
-    deliveryLocation: "ncr",
+    deliveryLocation: "iloilo_free",
     status: "Confirmed",
-    notes: ""
+    notes: "",
+    conferenceDays: 3,
+    agencyPoNumber: ""
   });
 
   useEffect(() => {
@@ -93,31 +98,65 @@ export default function AdminPackageManager({
   const handleOpenPkgModal = (pkg = null) => {
     if (pkg) {
       const allowances = getPackageCourseAllowances(pkg);
+      const isFoodTray = pkg.serviceType === "food_tray" || pkg.id?.startsWith("food_tray");
+      const isPica = pkg.serviceType === "pica_pica" || pkg.id?.startsWith("pica_pica");
+      const isGrazing = pkg.serviceType === "grazing_table" || pkg.id?.startsWith("grazing_");
       setEditingPkg({
         ...pkg,
+        serviceType: pkg.serviceType || (isFoodTray ? "food_tray" : isPica ? "pica_pica" : isGrazing ? "grazing_table" : "buffet"),
+        price: pkg.price !== undefined ? pkg.price : "",
+        paxRange: pkg.paxRange || "",
         mainDishesCount: allowances.mainDishesCount,
         regSidesCount: allowances.regSidesCount,
         specSidesCount: allowances.specSidesCount,
         regDessertsCount: allowances.regDessertsCount,
         specDessertsCount: allowances.specDessertsCount,
+        slidersCount: allowances.slidersCount || pkg.picaAllowances?.sliders || pkg.grazingAllowances?.sliders || 2,
+        canapesCount: allowances.canapesCount || pkg.picaAllowances?.canapes || pkg.grazingAllowances?.canapes || 5,
+        fingerFoodCount: allowances.fingerFoodCount || pkg.picaAllowances?.fingerFood || 2,
+        miniDessertsCount: allowances.miniDessertsCount || pkg.picaAllowances?.miniDesserts || 2,
+        hasKakanin: Boolean(allowances.hasKakanin || pkg.picaAllowances?.hasKakanin),
+        hasDiyStation: Boolean(allowances.hasDiyStation || pkg.picaAllowances?.hasDiyStation),
+        hasDessertShots: Boolean(allowances.hasDessertShots || pkg.grazingAllowances?.hasDessertShots),
         inclusionsText: (pkg.inclusions || []).join("\n")
       });
     } else {
+      const isTrayDefault = packageCategoryFilter === "food_tray";
+      const isPicaDefault = packageCategoryFilter === "pica_pica";
+      const isGrazingDefault = packageCategoryFilter === "grazing_table";
+      const defaultType = isTrayDefault ? "food_tray" : isPicaDefault ? "pica_pica" : isGrazingDefault ? "grazing_table" : "buffet";
       setEditingPkg({
         id: "",
+        serviceType: defaultType,
         name: "",
         subtitle: "",
-        badge: "Custom Package",
+        badge: isTrayDefault ? "Party Food Tray" : isPicaDefault ? "Pica Pica Station" : isGrazingDefault ? "Grazing Table" : "Custom Package",
         popular: false,
-        pricePerPax: 650,
-        minPax: 50,
-        mainDishesCount: 5,
-        regSidesCount: 1,
+        price: isTrayDefault ? 7500 : (isGrazingDefault ? 85000 : ""),
+        pricePerPax: isTrayDefault ? 500 : isPicaDefault ? 350 : (isGrazingDefault ? 567 : 650),
+        minPax: isTrayDefault ? 10 : isPicaDefault ? 50 : (isGrazingDefault ? 100 : 50),
+        maxPax: isTrayDefault ? 15 : isGrazingDefault ? 150 : undefined,
+        paxRange: isTrayDefault ? "10-15 PAX" : isPicaDefault ? "50 PAX Min" : isGrazingDefault ? "100-150 PAX" : "",
+        mainDishesCount: (isTrayDefault || isPicaDefault || isGrazingDefault) ? (isTrayDefault ? 3 : 0) : 5,
+        regSidesCount: isTrayDefault ? 2 : 1,
         specSidesCount: 0,
-        regDessertsCount: 1,
+        regDessertsCount: isTrayDefault ? 0 : 1,
         specDessertsCount: 0,
+        slidersCount: isGrazingDefault ? 4 : 2,
+        canapesCount: 5,
+        fingerFoodCount: 2,
+        miniDessertsCount: 2,
+        hasKakanin: false,
+        hasDiyStation: false,
+        hasDessertShots: false,
         courses: { beef: 1, pork: 1, chicken: 1, noodlesOrVeg: 1, rice: 1, dessert: 1, drinks: 1 },
-        inclusionsText: "5 Main Dishes\nSteamed Pandan Jasmine Rice\n1 Filipino Dessert\nBottomless Iced Tea\nStandard Catering Setup"
+        inclusionsText: isPicaDefault
+          ? "2 Sliders\n5 Canapés\n2 Finger Food\n2 Mini Dessert Cups\nChoice of: Juice or Coffee\nLive cocktail food station setup\nMinimum booking: 50 PAX"
+          : isGrazingDefault
+          ? "5 Kilos Italian Cured Meats\n5 Types of Imported Cheeses\n5 Seasonal Fruit Platters\n5 Canapés, 4 Sliders\nMix Nuts, Crackers, Bretzels\nGrazing Cups & Nachos Station\nArtisan Breadbasket with Jams"
+          : isTrayDefault
+          ? "3 Regular Main Dishes\n2 Regular Side Dishes\nFood-grade aluminum party food trays with secure lids\nFree delivery: Iloilo City, Pavia, Sta. Barbara, Cabatuan, Maasin, San Miguel, Janiuay\n50% downpayment upon booking, balance upon delivery"
+          : "5 Main Dishes\nSteamed Pandan Jasmine Rice\n1 Filipino Dessert\nBottomless Iced Tea\nStandard Catering Setup"
       });
     }
     setIsPkgModalOpen(true);
@@ -125,26 +164,54 @@ export default function AdminPackageManager({
 
   const handleSavePkgSubmit = async (e) => {
     e.preventDefault();
-    if (!editingPkg.name || !editingPkg.pricePerPax) return;
+    if (!editingPkg.name) return;
 
     const inclusions = editingPkg.inclusionsText
       ? editingPkg.inclusionsText.split("\n").map(s => s.trim()).filter(Boolean)
       : [];
 
+    const isFoodTray = editingPkg.serviceType === "food_tray" || editingPkg.id?.startsWith("food_tray");
+    const isPicaPica = editingPkg.serviceType === "pica_pica" || editingPkg.id?.startsWith("pica_pica");
+    const isGrazing = editingPkg.serviceType === "grazing_table" || editingPkg.id?.startsWith("grazing_");
+    const parsedFixedPrice = editingPkg.price !== "" && editingPkg.price !== undefined ? Number(editingPkg.price) : undefined;
+    const parsedPricePerPax = Number(editingPkg.pricePerPax) || (parsedFixedPrice && editingPkg.minPax ? Math.round(parsedFixedPrice / editingPkg.minPax) : 0);
+
+    const picaAllowances = isPicaPica ? {
+      sliders: Number(editingPkg.slidersCount) || 2,
+      canapes: Number(editingPkg.canapesCount) || 5,
+      fingerFood: Number(editingPkg.fingerFoodCount) || 2,
+      miniDesserts: Number(editingPkg.miniDessertsCount) || 2,
+      hasKakanin: Boolean(editingPkg.hasKakanin),
+      hasDiyStation: Boolean(editingPkg.hasDiyStation),
+      drinks: 1
+    } : undefined;
+
+    const grazingAllowances = isGrazing ? {
+      canapes: Number(editingPkg.canapesCount) || 5,
+      sliders: Number(editingPkg.slidersCount) || 4,
+      hasDessertShots: Boolean(editingPkg.hasDessertShots)
+    } : undefined;
+
     await onSavePackage({
       ...editingPkg,
+      serviceType: editingPkg.serviceType || (isFoodTray ? "food_tray" : isPicaPica ? "pica_pica" : isGrazing ? "grazing_table" : "buffet"),
+      price: parsedFixedPrice,
+      paxRange: editingPkg.paxRange || undefined,
       inclusions,
-      mainDishesCount: Number(editingPkg.mainDishesCount) || 5,
+      picaAllowances,
+      grazingAllowances,
+      mainDishesCount: (isPicaPica || isGrazing) ? 0 : (Number(editingPkg.mainDishesCount) || (isFoodTray ? 3 : 5)),
       sideDishes: {
-        regular: Number(editingPkg.regSidesCount) ?? 1,
-        special: Number(editingPkg.specSidesCount) ?? 0
+        regular: (isPicaPica || isGrazing) ? 0 : (Number(editingPkg.regSidesCount) ?? (isFoodTray ? 2 : 1)),
+        special: (isPicaPica || isGrazing) ? 0 : (Number(editingPkg.specSidesCount) ?? 0)
       },
       desserts: {
-        regular: Number(editingPkg.regDessertsCount) ?? 1,
-        special: Number(editingPkg.specDessertsCount) ?? 0
+        regular: (isPicaPica || isGrazing) ? 0 : (Number(editingPkg.regDessertsCount) ?? (isFoodTray ? 0 : 1)),
+        special: (isPicaPica || isGrazing) ? 0 : (Number(editingPkg.specDessertsCount) ?? 0)
       },
-      pricePerPax: Number(editingPkg.pricePerPax),
-      minPax: Number(editingPkg.minPax)
+      pricePerPax: parsedPricePerPax,
+      minPax: Number(editingPkg.minPax) || (isFoodTray ? 10 : (isPicaPica ? 50 : (isGrazing ? 100 : 50))),
+      maxPax: editingPkg.maxPax ? Number(editingPkg.maxPax) : undefined
     });
     setIsPkgModalOpen(false);
     setEditingPkg(null);
@@ -244,15 +311,20 @@ export default function AdminPackageManager({
   // Handle Direct Booking Submission
   const handleDirectBookingSubmit = async (e) => {
     e.preventDefault();
+    const isConf = directBooking.eventType === "government_conference";
+    const confDays = isConf ? Math.max(1, Number(directBooking.conferenceDays || 3)) : 1;
     const pkg = packages.find(p => p.id === directBooking.packageId) || packages[0];
     const paxNum = Number(directBooking.pax) || 100;
-    const foodTotal = paxNum * (pkg.pricePerPax || 0);
+    const foodTotal = isConf 
+      ? (paxNum * (CONFERENCE_MEAL_RATES?.dailyTotal || 1290) * confDays)
+      : (paxNum * (pkg.pricePerPax || 0));
 
     const delivery = DELIVERY_LOCATIONS.find(d => d.id === directBooking.deliveryLocation) || DELIVERY_LOCATIONS[0];
-    const subtotal = foodTotal + (delivery.fee || 0);
+    const deliveryFee = (delivery.fee || 0) * (isConf ? confDays : 1);
+    const subtotal = foodTotal + deliveryFee;
     const serviceCharge = Math.round(subtotal * 0.1);
     const grandTotal = subtotal + serviceCharge;
-    const downpaymentRequired = Math.round(grandTotal * 0.5);
+    const downpaymentRequired = isConf ? 0 : Math.round(grandTotal * 0.5);
 
     const eventTypeObj = EVENT_TYPES.find(t => t.id === directBooking.eventType);
 
@@ -263,22 +335,37 @@ export default function AdminPackageManager({
       clientName: directBooking.clientName,
       contactNumber: directBooking.contactNumber,
       email: directBooking.email,
+      isConferenceBooking: isConf,
+      conferenceDays: confDays,
+      conferenceEndDate: isConf ? getConferenceEndDate(directBooking.eventDate, confDays) : directBooking.eventDate,
+      agencyPoNumber: directBooking.agencyPoNumber || "",
       eventType: directBooking.eventType,
-      eventTypeName: eventTypeObj ? eventTypeObj.name : "Celebration",
+      eventTypeName: isConf ? `Government / Multi-Day Conference (${confDays} Days Full-Board)` : (eventTypeObj ? eventTypeObj.name : "Celebration"),
       eventDate: directBooking.eventDate,
       eventTime: directBooking.eventTime,
       venueName: directBooking.venueName || "Client Venue",
       venueAddress: directBooking.venueAddress || "Metro Manila",
-      packageId: pkg.id,
-      packageName: pkg.name,
+      isFoodTray: pkg.serviceType === "food_tray" || pkg.id?.startsWith("food_tray"),
+      isPicaPica: pkg.serviceType === "pica_pica" || pkg.id?.startsWith("pica_pica"),
+      isGrazingTable: pkg.serviceType === "grazing_table" || pkg.id?.startsWith("grazing_"),
+      serviceType: pkg.serviceType || (pkg.id?.startsWith("food_tray") ? "food_tray" : pkg.id?.startsWith("pica_pica") ? "pica_pica" : pkg.id?.startsWith("grazing_") ? "grazing_table" : "buffet"),
+      packagePrice: pkg.price || null,
+      paxRange: pkg.paxRange || null,
+      packageId: isConf ? "gov_conference_full_board" : pkg.id,
+      packageName: isConf ? `Government Full-Board Conference (${confDays} Days • 4 Meals/Day)` : pkg.name,
       pax: paxNum,
-      pricePerPax: pkg.pricePerPax,
+      pricePerPax: isConf ? (CONFERENCE_MEAL_RATES?.dailyTotal || 1290) : pkg.pricePerPax,
       foodTotal,
-      dishes: (pkg.inclusions || []).slice(0, 5),
+      dishes: isConf ? [
+        "AM Snack: Sandwich + Drink (₱120/pax)",
+        "Lunch Buffet: Package 1 - 3 Mains, 1 Side, Rice, Dessert, Beverage (₱480/pax)",
+        "PM Snack: Pasta + Drink (₱140/pax)",
+        "Dinner Buffet: Package 2 - 4 Mains, 1 Side, Rice, Dessert, Beverage (₱550/pax)"
+      ] : (pkg.inclusions || []).slice(0, 5),
       selectedAddons: [],
       addonsTotal: 0,
       deliveryLocation: directBooking.deliveryLocation,
-      deliveryFee: delivery.fee || 0,
+      deliveryFee,
       subtotal,
       serviceChargePercent: 10,
       serviceCharge,
@@ -287,8 +374,8 @@ export default function AdminPackageManager({
       discountAmount: 0,
       grandTotal,
       downpaymentRequired,
-      balanceDue: (directBooking.status === "Confirmed" || directBooking.status === "Ongoing") ? downpaymentRequired : grandTotal,
-      notes: directBooking.notes || "Direct booking recorded via Admin Portal.",
+      balanceDue: isConf ? grandTotal : ((directBooking.status === "Confirmed" || directBooking.status === "Ongoing") ? downpaymentRequired : grandTotal),
+      notes: directBooking.notes || (isConf ? "Government Conference booking backed by Agency PO / LDDAP-ADA." : "Direct booking recorded via Admin Portal."),
       bookingReference: (directBooking.status === "Confirmed" || directBooking.status === "Ongoing")
         ? formatBookingReference(directBooking.eventDate, directBooking.eventTime, directBooking.clientName)
         : null
@@ -308,7 +395,11 @@ export default function AdminPackageManager({
     { id: "noodlesOrVeg", name: "Side Dish (Pasta & Veg)" },
     { id: "rice", name: "Kanin & Sabaw (Rice & Soup)" },
     { id: "dessert", name: "Panghimagas (Dessert)" },
-    { id: "drinks", name: "Inumin (Beverages)" }
+    { id: "drinks", name: "Inumin (Beverages)" },
+    { id: "sliders", name: "🍔 Sliders (Pica & Grazing)" },
+    { id: "canapes", name: "🥖 Canapés (Pica & Grazing)" },
+    { id: "fingerFood", name: "🍟 Finger Food" },
+    { id: "miniDesserts", name: "🍮 Mini Desserts" }
   ];
 
   const currentCategoryDishes = dishes[selectedDishCategory] || [];
@@ -461,88 +552,263 @@ export default function AdminPackageManager({
             </button>
           </div>
 
+          {/* Service Type Filter Pills */}
+          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.25rem", flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--text-secondary)", marginRight: "0.25rem" }}>
+              Filter Service:
+            </span>
+            <button
+              type="button"
+              onClick={() => setPackageCategoryFilter("all")}
+              style={{
+                padding: "0.4rem 0.85rem",
+                borderRadius: "20px",
+                border: packageCategoryFilter === "all" ? "1.5px solid var(--gold-600)" : "1px solid var(--border-subtle)",
+                background: packageCategoryFilter === "all" ? "var(--gold-50)" : "#ffffff",
+                color: packageCategoryFilter === "all" ? "var(--gold-700)" : "var(--text-secondary)",
+                fontWeight: packageCategoryFilter === "all" ? 700 : 500,
+                fontSize: "0.82rem",
+                cursor: "pointer"
+              }}
+            >
+              All Packages ({packages.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setPackageCategoryFilter("buffet")}
+              style={{
+                padding: "0.4rem 0.85rem",
+                borderRadius: "20px",
+                border: packageCategoryFilter === "buffet" ? "1.5px solid var(--gold-600)" : "1px solid var(--border-subtle)",
+                background: packageCategoryFilter === "buffet" ? "var(--gold-50)" : "#ffffff",
+                color: packageCategoryFilter === "buffet" ? "var(--gold-700)" : "var(--text-secondary)",
+                fontWeight: packageCategoryFilter === "buffet" ? 700 : 500,
+                fontSize: "0.82rem",
+                cursor: "pointer"
+              }}
+            >
+              🍽️ Buffet Catering ({packages.filter(p => p.serviceType === "buffet" || (!p.serviceType && !p.id?.startsWith("food_tray") && !p.id?.startsWith("pica_") && !p.id?.startsWith("grazing_"))).length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setPackageCategoryFilter("food_tray")}
+              style={{
+                padding: "0.4rem 0.85rem",
+                borderRadius: "20px",
+                border: packageCategoryFilter === "food_tray" ? "1.5px solid var(--gold-600)" : "1px solid var(--border-subtle)",
+                background: packageCategoryFilter === "food_tray" ? "var(--gold-50)" : "#ffffff",
+                color: packageCategoryFilter === "food_tray" ? "var(--gold-700)" : "var(--text-secondary)",
+                fontWeight: packageCategoryFilter === "food_tray" ? 700 : 500,
+                fontSize: "0.82rem",
+                cursor: "pointer"
+              }}
+            >
+              🍱 Food Tray Packages ({packages.filter(p => p.serviceType === "food_tray" || p.id?.startsWith("food_tray")).length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setPackageCategoryFilter("pica_pica")}
+              style={{
+                padding: "0.4rem 0.85rem",
+                borderRadius: "20px",
+                border: packageCategoryFilter === "pica_pica" ? "1.5px solid var(--gold-600)" : "1px solid var(--border-subtle)",
+                background: packageCategoryFilter === "pica_pica" ? "var(--gold-50)" : "#ffffff",
+                color: packageCategoryFilter === "pica_pica" ? "var(--gold-700)" : "var(--text-secondary)",
+                fontWeight: packageCategoryFilter === "pica_pica" ? 700 : 500,
+                fontSize: "0.82rem",
+                cursor: "pointer"
+              }}
+            >
+              🍢 Pica Pica Station ({packages.filter(p => p.serviceType === "pica_pica" || p.id?.startsWith("pica_pica")).length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setPackageCategoryFilter("grazing_table")}
+              style={{
+                padding: "0.4rem 0.85rem",
+                borderRadius: "20px",
+                border: packageCategoryFilter === "grazing_table" ? "1.5px solid var(--gold-600)" : "1px solid var(--border-subtle)",
+                background: packageCategoryFilter === "grazing_table" ? "var(--gold-50)" : "#ffffff",
+                color: packageCategoryFilter === "grazing_table" ? "var(--gold-700)" : "var(--text-secondary)",
+                fontWeight: packageCategoryFilter === "grazing_table" ? 700 : 500,
+                fontSize: "0.82rem",
+                cursor: "pointer"
+              }}
+            >
+              🧀 Grazing Table ({packages.filter(p => p.serviceType === "grazing_table" || p.id?.startsWith("grazing_")).length})
+            </button>
+          </div>
+
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(350px, 1fr))", gap: "1.25rem" }}>
-            {packages.map((pkg) => {
-              const isPremiere = pkg.id === "royal_premiere" || (pkg.pricePerPax >= 850 && pkg.minPax >= 70);
-              const startingCost = (pkg.pricePerPax || 0) * (pkg.minPax || 50);
+            {packages
+              .filter(pkg => {
+                const isTray = pkg.serviceType === "food_tray" || pkg.id?.startsWith("food_tray");
+                const isPica = pkg.serviceType === "pica_pica" || pkg.id?.startsWith("pica_pica");
+                const isGrazing = pkg.serviceType === "grazing_table" || pkg.id?.startsWith("grazing_");
+                if (packageCategoryFilter === "buffet") return !isTray && !isPica && !isGrazing;
+                if (packageCategoryFilter === "food_tray") return isTray;
+                if (packageCategoryFilter === "pica_pica") return isPica;
+                if (packageCategoryFilter === "grazing_table") return isGrazing;
+                return true;
+              })
+              .map((pkg) => {
+                const isTray = pkg.serviceType === "food_tray" || pkg.id?.startsWith("food_tray");
+                const isPica = pkg.serviceType === "pica_pica" || pkg.id?.startsWith("pica_pica");
+                const isGrazing = pkg.serviceType === "grazing_table" || pkg.id?.startsWith("grazing_");
+                const isPremiere = !isTray && !isPica && !isGrazing && (pkg.id === "royal_premiere" || (pkg.pricePerPax >= 850 && pkg.minPax >= 70));
+                const startingCost = pkg.price 
+                  ? pkg.price 
+                  : (pkg.pricePerPax || 0) * (pkg.minPax || (isTray ? 10 : (isPica ? 50 : (isGrazing ? 100 : 50))));
+                const allowances = getPackageCourseAllowances(pkg);
 
-              return (
-                <div 
-                  key={pkg.id} 
-                  className="card-section" 
-                  style={{ 
-                    position: "relative",
-                    marginBottom: 0, 
-                    border: isPremiere ? "2px solid var(--gold-400)" : "1px solid var(--border-subtle)",
-                    boxShadow: isPremiere ? "var(--shadow-gold)" : "var(--shadow-sm)"
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
-                    <span className="pkg-badge" style={{ position: "static", marginBottom: "0.25rem" }}>
-                      {pkg.badge || "Standard Tier"}
-                    </span>
-                    <div style={{ display: "flex", gap: "0.35rem" }}>
-                      <button 
-                        onClick={() => handleOpenPkgModal(pkg)}
-                        style={{ background: "#f1f5f9", border: "none", borderRadius: "6px", padding: "6px", cursor: "pointer", color: "var(--text-secondary)" }}
-                        title="Edit Package"
-                      >
-                        <Edit3 size={15} />
-                      </button>
-                      <button 
-                        onClick={() => onDeletePackage(pkg.id)}
-                        style={{ background: "#fef2f2", border: "none", borderRadius: "6px", padding: "6px", cursor: "pointer", color: "#dc2626" }}
-                        title="Delete Package"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  </div>
+                const badgeBg = isTray ? "#fffbeb" : isPica ? "#f0fdf4" : isGrazing ? "#fef3c7" : undefined;
+                const badgeColor = isTray ? "#b45309" : isPica ? "#166534" : isGrazing ? "#92400e" : undefined;
+                const badgeBorder = isTray ? "#fde68a" : isPica ? "#bbf7d0" : isGrazing ? "#fcd34d" : undefined;
 
-                  <h3 style={{ fontSize: "1.15rem", fontWeight: 700, color: "var(--text-primary)", marginBottom: "0.25rem" }}>
-                    {pkg.name}
-                  </h3>
-                  <p style={{ fontSize: "0.82rem", color: "var(--text-muted)", minHeight: "36px", marginBottom: "1rem" }}>
-                    {pkg.subtitle}
-                  </p>
-
-                  <div style={{ background: "var(--surface-sunken)", padding: "0.85rem", borderRadius: "8px", marginBottom: "1rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
-                    <div>
-                      <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>Rate Per Pax</div>
-                      <div style={{ fontSize: "1.3rem", fontWeight: 800, color: "var(--gold-600)" }}>
-                        ₱{pkg.pricePerPax.toLocaleString()}
+                return (
+                  <div 
+                    key={pkg.id} 
+                    className="card-section" 
+                    style={{ 
+                      position: "relative",
+                      marginBottom: 0, 
+                      border: isPremiere ? "2px solid var(--gold-400)" : isTray ? "1.5px solid #d97706" : isPica ? "1.5px solid #16a34a" : isGrazing ? "1.5px solid #d97706" : "1px solid var(--border-subtle)",
+                      boxShadow: isPremiere ? "var(--shadow-gold)" : (isTray || isPica || isGrazing) ? "0 4px 12px rgba(217, 119, 6, 0.08)" : "var(--shadow-sm)"
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
+                      <span className="pkg-badge" style={{ position: "static", marginBottom: "0.25rem", background: badgeBg, color: badgeColor, borderColor: badgeBorder }}>
+                        {isTray ? (pkg.badge || "🍱 Food Tray") : isPica ? (pkg.badge || "🍢 Pica Pica") : isGrazing ? (pkg.badge || "🧀 Grazing Table") : (pkg.badge || "Standard Tier")}
+                      </span>
+                      <div style={{ display: "flex", gap: "0.35rem" }}>
+                        <button 
+                          onClick={() => handleOpenPkgModal(pkg)}
+                          style={{ background: "#f1f5f9", border: "none", borderRadius: "6px", padding: "6px", cursor: "pointer", color: "var(--text-secondary)" }}
+                          title="Edit Package"
+                        >
+                          <Edit3 size={15} />
+                        </button>
+                        <button 
+                          onClick={() => onDeletePackage(pkg.id)}
+                          style={{ background: "#fef2f2", border: "none", borderRadius: "6px", padding: "6px", cursor: "pointer", color: "#dc2626" }}
+                          title="Delete Package"
+                        >
+                          <Trash2 size={15} />
+                        </button>
                       </div>
                     </div>
-                    <div>
-                      <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>Starting Package Min</div>
-                      <div style={{ fontSize: "1.1rem", fontWeight: 700, color: isPremiere ? "var(--emerald-600)" : "var(--text-primary)" }}>
-                        ₱{startingCost.toLocaleString()}
-                        <span style={{ fontSize: "0.75rem", fontWeight: 500, color: "var(--text-muted)" }}> ({pkg.minPax} pax)</span>
+
+                    <h3 style={{ fontSize: "1.15rem", fontWeight: 700, color: "var(--text-primary)", marginBottom: "0.25rem" }}>
+                      {pkg.name}
+                    </h3>
+                    <p style={{ fontSize: "0.82rem", color: "var(--text-muted)", minHeight: "36px", marginBottom: "1rem" }}>
+                      {pkg.subtitle}
+                    </p>
+
+                    <div style={{ background: "var(--surface-sunken)", padding: "0.85rem", borderRadius: "8px", marginBottom: "1rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                      <div>
+                        <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>
+                          {(isTray || isGrazing) && pkg.price ? "Package Price" : "Rate Per Pax"}
+                        </div>
+                        <div style={{ fontSize: "1.3rem", fontWeight: 800, color: "var(--gold-600)" }}>
+                          ₱{((isTray || isGrazing) && pkg.price ? pkg.price : (pkg.pricePerPax || 0)).toLocaleString()}
+                          {(!pkg.price || (!isTray && !isGrazing)) && <span style={{ fontSize: "0.75rem", fontWeight: 500, color: "var(--text-muted)" }}>/pax</span>}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>
+                          {(isTray || isGrazing) ? "Serving Capacity" : "Starting Package Min"}
+                        </div>
+                        <div style={{ fontSize: "1.1rem", fontWeight: 700, color: isPremiere ? "var(--emerald-600)" : "var(--text-primary)" }}>
+                          {pkg.paxRange ? (
+                            pkg.paxRange
+                          ) : (
+                            <>
+                              ₱{startingCost.toLocaleString()}
+                              <span style={{ fontSize: "0.75rem", fontWeight: 500, color: "var(--text-muted)" }}> ({pkg.minPax} pax)</span>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div>
-                    <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-secondary)", marginBottom: "0.5rem", textTransform: "uppercase" }}>
-                      Key Inclusions:
-                    </div>
-                    <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-                      {(pkg.inclusions || []).slice(0, 4).map((inc, i) => (
-                        <li key={i} style={{ fontSize: "0.8rem", color: "var(--text-secondary)", display: "flex", alignItems: "flex-start", gap: "0.4rem" }}>
-                          <Check size={14} color="var(--gold-600)" style={{ flexShrink: 0, marginTop: "2px" }} />
-                          <span>{inc}</span>
-                        </li>
-                      ))}
-                      {(pkg.inclusions || []).length > 4 && (
-                        <li style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontStyle: "italic", marginLeft: "1.2rem" }}>
-                          + {(pkg.inclusions || []).length - 4} more inclusions...
-                        </li>
+                    {/* Allowances summary badge */}
+                    <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
+                      {isPica ? (
+                        <>
+                          <span style={{ fontSize: "0.72rem", background: "#fef3c7", color: "#b45309", padding: "2px 8px", borderRadius: "12px", fontWeight: 600 }}>
+                            🍔 {allowances.slidersCount || 2} Sliders
+                          </span>
+                          <span style={{ fontSize: "0.72rem", background: "#f0fdf4", color: "#166534", padding: "2px 8px", borderRadius: "12px", fontWeight: 600 }}>
+                            🥖 {allowances.canapesCount || 5} Canapés
+                          </span>
+                          <span style={{ fontSize: "0.72rem", background: "#fdf2f8", color: "#9d174d", padding: "2px 8px", borderRadius: "12px", fontWeight: 600 }}>
+                            🍟 {allowances.fingerFoodCount || 2} Finger Food
+                          </span>
+                          <span style={{ fontSize: "0.72rem", background: "#eff6ff", color: "#1e40af", padding: "2px 8px", borderRadius: "12px", fontWeight: 600 }}>
+                            🍮 {allowances.miniDessertsCount || 2} Desserts
+                          </span>
+                          {allowances.hasDiyStation && (
+                            <span style={{ fontSize: "0.72rem", background: "#faf5ff", color: "#6b21a8", padding: "2px 8px", borderRadius: "12px", fontWeight: 600 }}>
+                              🍩 DIY Live Station
+                            </span>
+                          )}
+                        </>
+                      ) : isGrazing ? (
+                        <>
+                          <span style={{ fontSize: "0.72rem", background: "#fef3c7", color: "#b45309", padding: "2px 8px", borderRadius: "12px", fontWeight: 600 }}>
+                            🥖 {allowances.canapesCount || 5} Canapés
+                          </span>
+                          <span style={{ fontSize: "0.72rem", background: "#f0fdf4", color: "#166534", padding: "2px 8px", borderRadius: "12px", fontWeight: 600 }}>
+                            🍔 {allowances.slidersCount || 4} Sliders
+                          </span>
+                          <span style={{ fontSize: "0.72rem", background: "#fdf2f8", color: "#9d174d", padding: "2px 8px", borderRadius: "12px", fontWeight: 600 }}>
+                            🧀 Cured Meats & Cheeses
+                          </span>
+                          <span style={{ fontSize: "0.72rem", background: "#eff6ff", color: "#1e40af", padding: "2px 8px", borderRadius: "12px", fontWeight: 600 }}>
+                            🌮 Nacho Station & Cups
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ fontSize: "0.72rem", background: "var(--gold-50)", color: "var(--gold-700)", padding: "2px 8px", borderRadius: "12px", fontWeight: 600 }}>
+                            🍛 {allowances.mainDishesCount} {allowances.mainDishesCount === 1 ? "Regular Main" : "Main Dishes"}
+                          </span>
+                          {allowances.regSidesCount > 0 && (
+                            <span style={{ fontSize: "0.72rem", background: "#f0fdf4", color: "#166534", padding: "2px 8px", borderRadius: "12px", fontWeight: 600 }}>
+                              🥗 {allowances.regSidesCount} Side{allowances.regSidesCount > 1 ? "s" : ""}
+                            </span>
+                          )}
+                          {allowances.regDessertsCount > 0 && (
+                            <span style={{ fontSize: "0.72rem", background: "#fdf2f8", color: "#9d174d", padding: "2px 8px", borderRadius: "12px", fontWeight: 600 }}>
+                              🍮 {allowances.regDessertsCount} Dessert{allowances.regDessertsCount > 1 ? "s" : ""}
+                            </span>
+                          )}
+                        </>
                       )}
-                    </ul>
+                    </div>
+
+                    <div>
+                      <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-secondary)", marginBottom: "0.5rem", textTransform: "uppercase" }}>
+                        Key Inclusions:
+                      </div>
+                      <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                        {(pkg.inclusions || []).slice(0, 4).map((inc, i) => (
+                          <li key={i} style={{ fontSize: "0.8rem", color: "var(--text-secondary)", display: "flex", alignItems: "flex-start", gap: "0.4rem" }}>
+                            <Check size={14} color="var(--gold-600)" style={{ flexShrink: 0, marginTop: "2px" }} />
+                            <span>{inc}</span>
+                          </li>
+                        ))}
+                        {(pkg.inclusions || []).length > 4 && (
+                          <li style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontStyle: "italic", marginLeft: "1.2rem" }}>
+                            + {(pkg.inclusions || []).length - 4} more inclusions...
+                          </li>
+                        )}
+                      </ul>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
           </div>
         </div>
       )}
@@ -813,6 +1079,60 @@ export default function AdminPackageManager({
                 </div>
               </div>
 
+              {directBooking.eventType === "government_conference" && (
+                <div style={{
+                  background: "#f0fdf4",
+                  border: "1.5px solid #86efac",
+                  borderRadius: "8px",
+                  padding: "1rem",
+                  marginBottom: "1rem"
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: "1.2rem" }}>🏛️</span>
+                    <strong style={{ color: "#166534", fontSize: "0.95rem" }}>Government Multi-Day Full-Board Conference Mode</strong>
+                    <span style={{ fontSize: "0.75rem", background: "#dcfce7", color: "#15803d", padding: "2px 8px", borderRadius: "12px", fontWeight: 700 }}>
+                      0% Advance Deposit (COA / RA 9184)
+                    </span>
+                  </div>
+                  <p style={{ fontSize: "0.8rem", color: "#166534", margin: 0, lineHeight: 1.5 }}>
+                    Full-board meal rate: <strong>₱1,290 / pax / day</strong> (AM Snack + Lunch Package 1 + PM Snack + Dinner Package 2). Settled Net 30/45 Days via LandBank LDDAP-ADA.
+                  </p>
+                  
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop: "0.75rem" }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: "0.8rem" }}>Conference Duration (Days) *</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="14"
+                        className="form-input"
+                        value={directBooking.conferenceDays || 3}
+                        onChange={(e) => setDirectBooking(prev => ({ ...prev, conferenceDays: Math.max(1, Number(e.target.value)) }))}
+                      />
+                      {directBooking.eventDate && (
+                        <span style={{ fontSize: "0.72rem", color: "#15803d", marginTop: "3px", display: "block" }}>
+                          📅 Coverage: <strong>{directBooking.eventDate}</strong> to <strong>{getConferenceEndDate(directBooking.eventDate, directBooking.conferenceDays || 3)}</strong>
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: "0.8rem" }}>Agency Purchase Order (PO) / PR Ref #</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. PO-2026-DEPED-0892"
+                        className="form-input"
+                        value={directBooking.agencyPoNumber || ""}
+                        onChange={(e) => setDirectBooking(prev => ({ ...prev, agencyPoNumber: e.target.value }))}
+                      />
+                      <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "3px", display: "block" }}>
+                        Audited reference for billing invoice & disbursement
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
                 <div className="form-group">
                   <label className="form-label">Event Date *</label>
@@ -838,6 +1158,9 @@ export default function AdminPackageManager({
                     value={directBooking.eventTime}
                     onChange={(e) => setDirectBooking(prev => ({ ...prev, eventTime: e.target.value }))}
                   />
+                  <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "3px", display: "block" }}>
+                    Serving: <strong>{formatTime12Hour(directBooking.eventTime)}</strong>
+                  </span>
                 </div>
 
                 <div className="form-group">
@@ -856,17 +1179,31 @@ export default function AdminPackageManager({
               <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
                 <div className="form-group">
                   <label className="form-label">Select Catering Package</label>
-                  <select
-                    className="form-select"
-                    value={directBooking.packageId}
-                    onChange={(e) => setDirectBooking(prev => ({ ...prev, packageId: e.target.value }))}
-                  >
-                    {packages.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} — ₱{p.pricePerPax}/pax (Min {p.minPax} pax)
-                      </option>
-                    ))}
-                  </select>
+                  {directBooking.eventType === "government_conference" ? (
+                    <div style={{
+                      padding: "0.6rem 0.85rem",
+                      background: "var(--bg-subtle, #f8fafc)",
+                      border: "1.5px solid #86efac",
+                      borderRadius: "6px",
+                      fontSize: "0.85rem",
+                      color: "#166534",
+                      fontWeight: 600
+                    }}>
+                      🏛️ Government Full-Board Conference Package (₱1,290/pax/day • 4 Meals/Day)
+                    </div>
+                  ) : (
+                    <select
+                      className="form-select"
+                      value={directBooking.packageId}
+                      onChange={(e) => setDirectBooking(prev => ({ ...prev, packageId: e.target.value }))}
+                    >
+                      {packages.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} — ₱{p.pricePerPax}/pax (Min {p.minPax} pax)
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 <div className="form-group">
@@ -964,12 +1301,343 @@ export default function AdminPackageManager({
             </div>
 
             <form onSubmit={handleSavePkgSubmit}>
+              {/* Service Type Selection */}
+              <div style={{ marginBottom: "1.25rem" }}>
+                <label className="form-label">Service Type *</label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "0.5rem" }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPkg(prev => ({
+                        ...prev,
+                        serviceType: "buffet",
+                        badge: prev.badge?.includes("Tray") || prev.badge?.includes("Pica") || prev.badge?.includes("Grazing") ? "Standard Tier" : prev.badge,
+                        minPax: Math.max(20, prev.minPax || 50),
+                        mainDishesCount: Math.max(3, prev.mainDishesCount || 5),
+                        regSidesCount: prev.regSidesCount ?? 1,
+                        regDessertsCount: prev.regDessertsCount ?? 1
+                      }));
+                    }}
+                    style={{
+                      padding: "0.6rem 0.4rem",
+                      borderRadius: "8px",
+                      border: editingPkg.serviceType === "buffet" ? "2px solid var(--gold-600)" : "1px solid var(--border-subtle)",
+                      background: editingPkg.serviceType === "buffet" ? "var(--gold-50)" : "#ffffff",
+                      color: editingPkg.serviceType === "buffet" ? "var(--gold-800)" : "var(--text-secondary)",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "0.35rem",
+                      fontSize: "0.78rem"
+                    }}
+                  >
+                    🍽️ Buffet
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPkg(prev => ({
+                        ...prev,
+                        serviceType: "food_tray",
+                        badge: "Party Food Tray",
+                        price: prev.price || 7500,
+                        paxRange: prev.paxRange || "10-15 PAX",
+                        minPax: prev.minPax <= 20 ? prev.minPax : 10,
+                        mainDishesCount: prev.mainDishesCount || 3,
+                        regSidesCount: prev.regSidesCount !== undefined ? prev.regSidesCount : 2,
+                        regDessertsCount: 0
+                      }));
+                    }}
+                    style={{
+                      padding: "0.6rem 0.4rem",
+                      borderRadius: "8px",
+                      border: editingPkg.serviceType === "food_tray" ? "2px solid var(--gold-600)" : "1px solid var(--border-subtle)",
+                      background: editingPkg.serviceType === "food_tray" ? "var(--gold-50)" : "#ffffff",
+                      color: editingPkg.serviceType === "food_tray" ? "var(--gold-800)" : "var(--text-secondary)",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "0.35rem",
+                      fontSize: "0.78rem"
+                    }}
+                  >
+                    🍱 Food Tray
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPkg(prev => ({
+                        ...prev,
+                        serviceType: "pica_pica",
+                        badge: "Cocktail Station",
+                        pricePerPax: 350,
+                        minPax: 50,
+                        picaAllowances: prev.picaAllowances || { sliders: 3, canapes: 5, fingerFood: 3, miniDesserts: 2, hasKakanin: false, hasDiyStation: false }
+                      }));
+                    }}
+                    style={{
+                      padding: "0.6rem 0.4rem",
+                      borderRadius: "8px",
+                      border: editingPkg.serviceType === "pica_pica" ? "2px solid #047857" : "1px solid var(--border-subtle)",
+                      background: editingPkg.serviceType === "pica_pica" ? "#ecfdf5" : "#ffffff",
+                      color: editingPkg.serviceType === "pica_pica" ? "#065f46" : "var(--text-secondary)",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "0.35rem",
+                      fontSize: "0.78rem"
+                    }}
+                  >
+                    🍢 Pica Pica
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPkg(prev => ({
+                        ...prev,
+                        serviceType: "grazing_table",
+                        badge: "Artisan Deluxe",
+                        price: 85000,
+                        pricePerPax: 850,
+                        minPax: 100,
+                        maxPax: 150,
+                        paxRange: "100-150 PAX",
+                        grazingAllowances: prev.grazingAllowances || { canapes: 5, sliders: 4, hasDessertShots: false }
+                      }));
+                    }}
+                    style={{
+                      padding: "0.6rem 0.4rem",
+                      borderRadius: "8px",
+                      border: editingPkg.serviceType === "grazing_table" ? "2px solid #7c3aed" : "1px solid var(--border-subtle)",
+                      background: editingPkg.serviceType === "grazing_table" ? "#f5f3ff" : "#ffffff",
+                      color: editingPkg.serviceType === "grazing_table" ? "#5b21b6" : "var(--text-secondary)",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "0.35rem",
+                      fontSize: "0.78rem"
+                    }}
+                  >
+                    🧀 Grazing Table
+                  </button>
+                </div>
+              </div>
+
+              {/* Quick Template Presets */}
+              <div style={{ marginBottom: "1.25rem", background: "var(--surface-sunken)", padding: "0.75rem", borderRadius: "8px" }}>
+                <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--text-secondary)", marginBottom: "0.4rem" }}>
+                  QUICK PRESETS / TEMPLATES:
+                </div>
+                <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+                  {/* Pica Pica Presets */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPkg(prev => ({
+                        ...prev,
+                        serviceType: "pica_pica",
+                        name: "Pica Pica Station - Option 1",
+                        subtitle: "2 Sliders • 5 Canapés • 2 Finger Food • 2 Mini Desserts (Min 50 PAX)",
+                        pricePerPax: 300,
+                        minPax: 50,
+                        badge: "Cocktail Option 1",
+                        picaAllowances: { sliders: 2, canapes: 5, fingerFood: 2, miniDesserts: 2, hasKakanin: false, hasDiyStation: false },
+                        inclusionsText: "Choice of 2 Sliders (Regular / Special)\nChoice of 5 Canapés (Regular / Special)\nChoice of 2 Finger Foods\nChoice of 2 Mini Dessert Cups\nChoice of Juice or Brewed Coffee\nRustic Cocktail Station Table Setup & Styling\nFood labels & Cocktail Toothpicks/Napkins\nService staff for replenishment (4 Hours Event duration)\nMinimum booking: 50 PAX"
+                      }));
+                    }}
+                    style={{ fontSize: "0.72rem", padding: "4px 8px", borderRadius: "6px", background: "#ecfdf5", border: "1px solid #10b981", color: "#065f46", fontWeight: 600, cursor: "pointer" }}
+                  >
+                    🍢 Pica Pica Opt 1 (₱300/pax)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPkg(prev => ({
+                        ...prev,
+                        serviceType: "pica_pica",
+                        name: "Pica Pica Station - Option 2",
+                        subtitle: "3 Sliders • 5 Canapés • 3 Finger Food • 2 Mini Desserts (Min 50 PAX)",
+                        pricePerPax: 350,
+                        minPax: 50,
+                        badge: "Cocktail Option 2",
+                        picaAllowances: { sliders: 3, canapes: 5, fingerFood: 3, miniDesserts: 2, hasKakanin: false, hasDiyStation: false },
+                        inclusionsText: "Choice of 3 Sliders (Regular / Special)\nChoice of 5 Canapés (Regular / Special)\nChoice of 3 Finger Foods\nChoice of 2 Mini Dessert Cups\nChoice of Juice or Brewed Coffee\nRustic Cocktail Station Table Setup & Styling\nFood labels & Cocktail Toothpicks/Napkins\nService staff for replenishment (4 Hours Event duration)\nMinimum booking: 50 PAX"
+                      }));
+                    }}
+                    style={{ fontSize: "0.72rem", padding: "4px 8px", borderRadius: "6px", background: "#ecfdf5", border: "1px solid #10b981", color: "#065f46", fontWeight: 600, cursor: "pointer" }}
+                  >
+                    🍢 Pica Pica Opt 2 (₱350/pax)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPkg(prev => ({
+                        ...prev,
+                        serviceType: "pica_pica",
+                        name: "Pica Pica Station - Option 3 (Grand)",
+                        subtitle: "3 Sliders • 5 Canapés • 3 Finger Food • 3 Desserts • Kakanin • DIY Station",
+                        pricePerPax: 425,
+                        minPax: 50,
+                        badge: "Grand Cocktail",
+                        picaAllowances: { sliders: 3, canapes: 5, fingerFood: 3, miniDesserts: 3, hasKakanin: true, hasDiyStation: true },
+                        inclusionsText: "Choice of 3 Sliders (Regular / Special)\nChoice of 5 Canapés (Regular / Special)\nChoice of 3 Finger Foods\nChoice of 3 Mini Dessert Cups\nTraditional Pinoy Kakanins Platter\nChoice of DIY Nacho Station OR DIY Mini Doughnut Station\nChoice of Juice or Brewed Coffee\nFull Deluxe Cocktail Station Setup & Attendant\nMinimum booking: 50 PAX"
+                      }));
+                    }}
+                    style={{ fontSize: "0.72rem", padding: "4px 8px", borderRadius: "6px", background: "#ecfdf5", border: "1px solid #10b981", color: "#065f46", fontWeight: 600, cursor: "pointer" }}
+                  >
+                    🍢 Pica Pica Opt 3 (₱425/pax)
+                  </button>
+
+                  {/* Grazing Table Presets */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPkg(prev => ({
+                        ...prev,
+                        serviceType: "grazing_table",
+                        name: "Grazing Table - Deluxe Package",
+                        subtitle: "Good for 100-150 PAX • Charcuterie, Artisan Cheeses, 5 Canapés, 4 Sliders",
+                        price: 85000,
+                        pricePerPax: 850,
+                        minPax: 100,
+                        maxPax: 150,
+                        paxRange: "100-150 PAX",
+                        badge: "Artisan Deluxe",
+                        grazingAllowances: { canapes: 5, sliders: 4, hasDessertShots: false },
+                        inclusionsText: "5 Kilos of Italian Cured Meats (Prosciutto, Salami, Coppa Ham)\n5 Types of Imported Cheeses (Brie, Cheddar, Gouda, Colby Jack, Feta)\n5 Big Seasonal Fruit Platters (Grapes, Berries, Melon, Kiwi, Oranges)\n5 Canapés of your choice\n4 Sliders of your choice\nMixed Assorted Nuts and Dried Fruits\nWafers, Saltin Crackers, Pretzels\nVegetables Sticks with Dips\nOlives, Cocktail Onions & Pickles\nHungarian Sausage Platter\nIndividual Grazing Cups\nNacho Station with warm cheese sauce\nArtisan Breadbasket with Gourmet Jams & Bread\nComplete Luxury Grazing Table Setup with Wooden Boards, Foliage & Styling"
+                      }));
+                    }}
+                    style={{ fontSize: "0.72rem", padding: "4px 8px", borderRadius: "6px", background: "#f5f3ff", border: "1px solid #8b5cf6", color: "#5b21b6", fontWeight: 600, cursor: "pointer" }}
+                  >
+                    🧀 Grazing Deluxe (₱85k / 100-150 PAX)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPkg(prev => ({
+                        ...prev,
+                        serviceType: "grazing_table",
+                        name: "Grazing Table - Premium Package",
+                        subtitle: "Good for 150-200 PAX • Deluxe inclusions + Gourmet Dessert Shots",
+                        price: 105000,
+                        pricePerPax: 700,
+                        minPax: 150,
+                        maxPax: 200,
+                        paxRange: "150-200 PAX",
+                        badge: "Artisan Premium",
+                        grazingAllowances: { canapes: 5, sliders: 4, hasDessertShots: true },
+                        inclusionsText: "5 Kilos of Italian Cured Meats\n5 Types of Imported Cheeses\n5 Big Seasonal Fruit Platters\n5 Canapés of your choice\n4 Sliders of your choice\nMixed Assorted Nuts and Dried Fruits\nWafers, Saltin Crackers, Pretzels\nVegetables Sticks with Dips\nOlives, Cocktail Onions\nHungarian Sausage Platter\nNacho Station with Dips\nGrazing Cups for guests\nGourmet Dessert Shots\nArtisan Breadbasket with Gourmet Jams and Bread\nFull Luxury Grazing Table Grand Floral & Wooden Display Setup"
+                      }));
+                    }}
+                    style={{ fontSize: "0.72rem", padding: "4px 8px", borderRadius: "6px", background: "#f5f3ff", border: "1px solid #8b5cf6", color: "#5b21b6", fontWeight: 600, cursor: "pointer" }}
+                  >
+                    🧀 Grazing Premium (₱105k / 150-200 PAX)
+                  </button>
+
+                  {/* Food Tray Presets */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPkg(prev => ({
+                        ...prev,
+                        serviceType: "food_tray",
+                        name: "Small Batch Package (10-15 PAX)",
+                        subtitle: "3 Regular Main Dish + 2 Regular Side (Palatable Party Food Trays)",
+                        price: 7500,
+                        pricePerPax: 500,
+                        minPax: 10,
+                        maxPax: 15,
+                        paxRange: "10-15 PAX",
+                        badge: "Small Batch",
+                        mainDishesCount: 3,
+                        regSidesCount: 2,
+                        specSidesCount: 0,
+                        regDessertsCount: 0,
+                        specDessertsCount: 0,
+                        inclusionsText: "3 Regular Main Dishes (Choice of Beef, Pork, Chicken, Seafood)\n2 Regular Side Dishes (Pasta, Noodles, or Vegetables)\nFood-grade aluminum party food trays with secure lids\nFree delivery: Iloilo City, Pavia, Sta. Barbara, Cabatuan, Maasin, San Miguel, Janiuay\n50% downpayment upon booking, balance upon delivery\nStrictly no cancellation (70% cancellation fee)"
+                      }));
+                    }}
+                    style={{ fontSize: "0.72rem", padding: "4px 8px", borderRadius: "6px", background: "#ffffff", border: "1px solid var(--border-subtle)", cursor: "pointer" }}
+                  >
+                    🍱 3 Mains + 2 Sides (₱7,500)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPkg(prev => ({
+                        ...prev,
+                        serviceType: "food_tray",
+                        name: "Single Dish Party Food Tray (1 Viand)",
+                        subtitle: "Select 1 Regular Dish Party Tray (Customizable A La Carte Viand)",
+                        price: 2500,
+                        pricePerPax: 200,
+                        minPax: 10,
+                        maxPax: 15,
+                        paxRange: "10-15 PAX / Tray",
+                        badge: "1 Regular Dish",
+                        mainDishesCount: 1,
+                        regSidesCount: 0,
+                        specSidesCount: 0,
+                        regDessertsCount: 0,
+                        specDessertsCount: 0,
+                        inclusionsText: "1 Regular Main Dish / Viand of your choice\nFood-grade aluminum party food tray with seal\nFree delivery: Iloilo City, Pavia, Sta. Barbara, Cabatuan, Maasin, San Miguel, Janiuay\nBook at least 2-3 days prior to event\n50% downpayment upon booking, balance upon delivery"
+                      }));
+                    }}
+                    style={{ fontSize: "0.72rem", padding: "4px 8px", borderRadius: "6px", background: "#ffffff", border: "1px solid var(--border-subtle)", cursor: "pointer", color: "#b45309", fontWeight: 600 }}
+                  >
+                    🍲 Single Food Tray (1 Viand)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPkg(prev => ({
+                        ...prev,
+                        serviceType: "buffet",
+                        name: "Classic Buffet Celebration",
+                        subtitle: "5 Main Dishes + Steamed Rice + Dessert + Beverage",
+                        price: "",
+                        pricePerPax: 650,
+                        minPax: 50,
+                        maxPax: undefined,
+                        paxRange: "",
+                        badge: "Classic Tier",
+                        mainDishesCount: 5,
+                        regSidesCount: 1,
+                        specSidesCount: 0,
+                        regDessertsCount: 1,
+                        specDessertsCount: 0,
+                        inclusionsText: "5 Gourmet Main Dishes\nSteamed Pandan Jasmine Rice\n1 Filipino Dessert\nBottomless Iced Tea\nStandard Catering Setup with Buffet Table & Waitstaff"
+                      }));
+                    }}
+                    style={{ fontSize: "0.72rem", padding: "4px 8px", borderRadius: "6px", background: "#ffffff", border: "1px solid var(--border-subtle)", cursor: "pointer" }}
+                  >
+                    🍽️ Classic Buffet (5 Mains)
+                  </button>
+                </div>
+              </div>
+
               <div className="form-group" style={{ marginBottom: "1rem" }}>
                 <label className="form-label">Package Name *</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Royal Premiere Banquet & VIP Feast"
+                  placeholder="e.g. Pica Pica Station - Option 2 / Grazing Table Deluxe"
                   className="form-input"
                   value={editingPkg.name}
                   onChange={(e) => setEditingPkg(prev => ({ ...prev, name: e.target.value }))}
@@ -980,116 +1648,341 @@ export default function AdminPackageManager({
                 <label className="form-label">Subtitle / Target Event</label>
                 <input
                   type="text"
-                  placeholder="e.g. Ultra-Luxury 7-Course Celebration with Carving Station"
+                  placeholder="e.g. 3 Sliders • 5 Canapés • 3 Finger Food • 2 Mini Desserts"
                   className="form-input"
                   value={editingPkg.subtitle}
                   onChange={(e) => setEditingPkg(prev => ({ ...prev, subtitle: e.target.value }))}
                 />
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
-                <div className="form-group">
-                  <label className="form-label">Price Per Pax (₱) *</label>
-                  <input
-                    type="number"
-                    required
-                    min="100"
-                    className="form-input"
-                    value={editingPkg.pricePerPax}
-                    onChange={(e) => setEditingPkg(prev => ({ ...prev, pricePerPax: e.target.value }))}
-                  />
-                </div>
+              {/* Pricing & Pax Grid */}
+              {editingPkg.serviceType === "grazing_table" || editingPkg.serviceType === "food_tray" ? (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
+                  <div className="form-group">
+                    <label className="form-label">Fixed Package Price (₱) *</label>
+                    <input
+                      type="number"
+                      required
+                      min="1000"
+                      placeholder="e.g. 85000"
+                      className="form-input"
+                      value={editingPkg.price ?? ""}
+                      onChange={(e) => setEditingPkg(prev => ({ ...prev, price: e.target.value }))}
+                    />
+                  </div>
 
-                <div className="form-group">
-                  <label className="form-label">Minimum Pax *</label>
-                  <input
-                    type="number"
-                    required
-                    min="20"
-                    className="form-input"
-                    value={editingPkg.minPax}
-                    onChange={(e) => setEditingPkg(prev => ({ ...prev, minPax: e.target.value }))}
-                  />
-                </div>
+                  <div className="form-group">
+                    <label className="form-label">Serving Range / Pax Text</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 100-150 PAX"
+                      className="form-input"
+                      value={editingPkg.paxRange ?? ""}
+                      onChange={(e) => setEditingPkg(prev => ({ ...prev, paxRange: e.target.value }))}
+                    />
+                  </div>
 
-                <div className="form-group">
-                  <label className="form-label">Tier Badge</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Premiere Luxe"
-                    className="form-input"
-                    value={editingPkg.badge}
-                    onChange={(e) => setEditingPkg(prev => ({ ...prev, badge: e.target.value }))}
-                  />
-                </div>
+                  <div className="form-group">
+                    <label className="form-label">Minimum Pax *</label>
+                    <input
+                      type="number"
+                      required
+                      min="1"
+                      className="form-input"
+                      value={editingPkg.minPax}
+                      onChange={(e) => setEditingPkg(prev => ({ ...prev, minPax: e.target.value }))}
+                    />
+                  </div>
 
-                <div className="form-group">
-                  <label className="form-label">Main Dishes Allowance *</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="15"
-                    required
-                    className="form-input"
-                    placeholder="e.g. 5"
-                    value={editingPkg.mainDishesCount ?? 5}
-                    onChange={(e) => setEditingPkg(prev => ({ ...prev, mainDishesCount: Number(e.target.value) || 0 }))}
-                  />
-                </div>
-              </div>
+                  <div className="form-group">
+                    <label className="form-label">Maximum Pax</label>
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="e.g. 150"
+                      className="form-input"
+                      value={editingPkg.maxPax ?? ""}
+                      onChange={(e) => setEditingPkg(prev => ({ ...prev, maxPax: e.target.value ? Number(e.target.value) : undefined }))}
+                    />
+                  </div>
 
-              {/* Course Allowances Grid: Sides and Desserts */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "0.75rem", marginBottom: "1rem", background: "rgba(241, 245, 249, 0.5)", padding: "0.75rem", borderRadius: "8px", border: "1px solid var(--border-subtle)" }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label" style={{ fontSize: "0.74rem" }}>🥗 Regular Sides</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="5"
-                    className="form-input"
-                    value={editingPkg.regSidesCount ?? 1}
-                    onChange={(e) => setEditingPkg(prev => ({ ...prev, regSidesCount: Number(e.target.value) || 0 }))}
-                  />
-                </div>
+                  <div className="form-group">
+                    <label className="form-label">Est. Per-Pax Value (₱)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="form-input"
+                      value={editingPkg.pricePerPax || ""}
+                      onChange={(e) => setEditingPkg(prev => ({ ...prev, pricePerPax: e.target.value }))}
+                    />
+                  </div>
 
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label" style={{ fontSize: "0.74rem", color: "#92400e" }}>⭐ Special Sides</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="5"
-                    className="form-input"
-                    style={{ borderColor: "#f59e0b" }}
-                    value={editingPkg.specSidesCount ?? 0}
-                    onChange={(e) => setEditingPkg(prev => ({ ...prev, specSidesCount: Number(e.target.value) || 0 }))}
-                  />
+                  <div className="form-group">
+                    <label className="form-label">Tier Badge</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Artisan Deluxe"
+                      className="form-input"
+                      value={editingPkg.badge}
+                      onChange={(e) => setEditingPkg(prev => ({ ...prev, badge: e.target.value }))}
+                    />
+                  </div>
                 </div>
+              ) : (
+                /* Per-Pax Pricing Grid (Buffet or Pica Pica) */
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
+                  <div className="form-group">
+                    <label className="form-label">Price Per Pax (₱) *</label>
+                    <input
+                      type="number"
+                      required
+                      min="100"
+                      placeholder="e.g. 350"
+                      className="form-input"
+                      value={editingPkg.pricePerPax}
+                      onChange={(e) => setEditingPkg(prev => ({ ...prev, pricePerPax: e.target.value }))}
+                    />
+                  </div>
 
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label" style={{ fontSize: "0.74rem" }}>🍮 Regular Desserts</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="5"
-                    className="form-input"
-                    value={editingPkg.regDessertsCount ?? 1}
-                    onChange={(e) => setEditingPkg(prev => ({ ...prev, regDessertsCount: Number(e.target.value) || 0 }))}
-                  />
-                </div>
+                  <div className="form-group">
+                    <label className="form-label">Minimum Pax *</label>
+                    <input
+                      type="number"
+                      required
+                      min="20"
+                      placeholder="50"
+                      className="form-input"
+                      value={editingPkg.minPax}
+                      onChange={(e) => setEditingPkg(prev => ({ ...prev, minPax: e.target.value }))}
+                    />
+                  </div>
 
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label" style={{ fontSize: "0.74rem", color: "#92400e" }}>⭐ Special Desserts</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="5"
-                    className="form-input"
-                    style={{ borderColor: "#f59e0b" }}
-                    value={editingPkg.specDessertsCount ?? 0}
-                    onChange={(e) => setEditingPkg(prev => ({ ...prev, specDessertsCount: Number(e.target.value) || 0 }))}
-                  />
+                  <div className="form-group">
+                    <label className="form-label">Tier Badge</label>
+                    <input
+                      type="text"
+                      placeholder={editingPkg.serviceType === "pica_pica" ? "e.g. Cocktail Option 2" : "e.g. Premiere Luxe"}
+                      className="form-input"
+                      value={editingPkg.badge}
+                      onChange={(e) => setEditingPkg(prev => ({ ...prev, badge: e.target.value }))}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* Service-Specific Allowances */}
+              {editingPkg.serviceType === "pica_pica" ? (
+                <div style={{ marginBottom: "1rem", background: "#f0fdf4", padding: "0.85rem", borderRadius: "8px", border: "1px solid #bbf7d0" }}>
+                  <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#166534", marginBottom: "0.6rem", textTransform: "uppercase" }}>
+                    🍢 Pica Pica Station Allowances:
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: "0.74rem" }}>🍔 Sliders Count</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="10"
+                        className="form-input"
+                        value={editingPkg.picaAllowances?.sliders ?? 3}
+                        onChange={(e) => setEditingPkg(prev => ({
+                          ...prev,
+                          picaAllowances: { ...prev.picaAllowances, sliders: Number(e.target.value) || 0 }
+                        }))}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: "0.74rem" }}>🥖 Canapés Count</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="15"
+                        className="form-input"
+                        value={editingPkg.picaAllowances?.canapes ?? 5}
+                        onChange={(e) => setEditingPkg(prev => ({
+                          ...prev,
+                          picaAllowances: { ...prev.picaAllowances, canapes: Number(e.target.value) || 0 }
+                        }))}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: "0.74rem" }}>🍗 Finger Food Count</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="10"
+                        className="form-input"
+                        value={editingPkg.picaAllowances?.fingerFood ?? 3}
+                        onChange={(e) => setEditingPkg(prev => ({
+                          ...prev,
+                          picaAllowances: { ...prev.picaAllowances, fingerFood: Number(e.target.value) || 0 }
+                        }))}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: "0.74rem" }}>🧁 Mini Dessert Cups</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="10"
+                        className="form-input"
+                        value={editingPkg.picaAllowances?.miniDesserts ?? 2}
+                        onChange={(e) => setEditingPkg(prev => ({
+                          ...prev,
+                          picaAllowances: { ...prev.picaAllowances, miniDesserts: Number(e.target.value) || 0 }
+                        }))}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: "1.5rem", fontSize: "0.82rem" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={editingPkg.picaAllowances?.hasKakanin ?? false}
+                        onChange={(e) => setEditingPkg(prev => ({
+                          ...prev,
+                          picaAllowances: { ...prev.picaAllowances, hasKakanin: e.target.checked }
+                        }))}
+                      />
+                      <span>Includes Pinoy Kakanins Platter</span>
+                    </label>
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={editingPkg.picaAllowances?.hasDiyStation ?? false}
+                        onChange={(e) => setEditingPkg(prev => ({
+                          ...prev,
+                          picaAllowances: { ...prev.picaAllowances, hasDiyStation: e.target.checked }
+                        }))}
+                      />
+                      <span>Includes Choice of DIY Nacho or DIY Doughnut Station</span>
+                    </label>
+                  </div>
+                </div>
+              ) : editingPkg.serviceType === "grazing_table" ? (
+                <div style={{ marginBottom: "1rem", background: "#f5f3ff", padding: "0.85rem", borderRadius: "8px", border: "1px solid #ddd6fe" }}>
+                  <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#5b21b6", marginBottom: "0.6rem", textTransform: "uppercase" }}>
+                    🧀 Grazing Table Inclusions & Allowances:
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.75rem", marginBottom: "0.5rem" }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: "0.74rem" }}>🥖 Canapés Count</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="10"
+                        className="form-input"
+                        value={editingPkg.grazingAllowances?.canapes ?? 5}
+                        onChange={(e) => setEditingPkg(prev => ({
+                          ...prev,
+                          grazingAllowances: { ...prev.grazingAllowances, canapes: Number(e.target.value) || 0 }
+                        }))}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: "0.74rem" }}>🍔 Sliders Count</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="10"
+                        className="form-input"
+                        value={editingPkg.grazingAllowances?.sliders ?? 4}
+                        onChange={(e) => setEditingPkg(prev => ({
+                          ...prev,
+                          grazingAllowances: { ...prev.grazingAllowances, sliders: Number(e.target.value) || 0 }
+                        }))}
+                      />
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", paddingTop: "1.2rem" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer", fontSize: "0.82rem" }}>
+                        <input
+                          type="checkbox"
+                          checked={editingPkg.grazingAllowances?.hasDessertShots ?? false}
+                          onChange={(e) => setEditingPkg(prev => ({
+                            ...prev,
+                            grazingAllowances: { ...prev.grazingAllowances, hasDessertShots: e.target.checked }
+                          }))}
+                        />
+                        <span>Includes Dessert Shots</span>
+                      </label>
+                    </div>
+                  </div>
+                  <p style={{ fontSize: "0.74rem", color: "#6d28d9", margin: 0 }}>
+                    * Charcuterie standard items (5kg Cured Meats, 5 Cheeses, 5 Fruit Platters, Nuts, Crackers, Pretzels, Veggies, Sausage, Grazing Cups, Nachos, Artisan Breads) are automatically included.
+                  </p>
+                </div>
+              ) : (
+                /* Buffet / Food Tray Course Allowances Grid: Mains, Sides, Desserts */
+                <div style={{ marginBottom: "1rem", background: "rgba(241, 245, 249, 0.5)", padding: "0.85rem", borderRadius: "8px", border: "1px solid var(--border-subtle)" }}>
+                  <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-secondary)", marginBottom: "0.6rem", textTransform: "uppercase" }}>
+                    Dish / Viand Allowances:
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr 1fr 1fr", gap: "0.75rem" }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: "0.74rem" }}>🍛 Main Dishes *</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="15"
+                        required
+                        className="form-input"
+                        value={editingPkg.mainDishesCount ?? (editingPkg.serviceType === "food_tray" ? 3 : 5)}
+                        onChange={(e) => setEditingPkg(prev => ({ ...prev, mainDishesCount: Number(e.target.value) || 0 }))}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: "0.74rem" }}>🥗 Reg Sides</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="5"
+                        className="form-input"
+                        value={editingPkg.regSidesCount ?? (editingPkg.serviceType === "food_tray" ? 2 : 1)}
+                        onChange={(e) => setEditingPkg(prev => ({ ...prev, regSidesCount: Number(e.target.value) || 0 }))}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: "0.74rem", color: "#92400e" }}>⭐ Spec Sides</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="5"
+                        className="form-input"
+                        style={{ borderColor: "#f59e0b" }}
+                        value={editingPkg.specSidesCount ?? 0}
+                        onChange={(e) => setEditingPkg(prev => ({ ...prev, specSidesCount: Number(e.target.value) || 0 }))}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: "0.74rem" }}>🍮 Reg Desserts</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="5"
+                        className="form-input"
+                        value={editingPkg.regDessertsCount ?? (editingPkg.serviceType === "food_tray" ? 0 : 1)}
+                        onChange={(e) => setEditingPkg(prev => ({ ...prev, regDessertsCount: Number(e.target.value) || 0 }))}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: "0.74rem", color: "#92400e" }}>⭐ Spec Desserts</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="5"
+                        className="form-input"
+                        style={{ borderColor: "#f59e0b" }}
+                        value={editingPkg.specDessertsCount ?? 0}
+                        onChange={(e) => setEditingPkg(prev => ({ ...prev, specDessertsCount: Number(e.target.value) || 0 }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="form-group" style={{ marginBottom: "1.25rem" }}>
                 <label className="form-label">Inclusions (One line per bullet) *</label>
