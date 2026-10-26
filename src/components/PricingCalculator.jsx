@@ -10,7 +10,10 @@ import {
   getMainDishesCount,
   getPackageCourseAllowances,
   CONFERENCE_MEAL_RATES,
-  CONFERENCE_SNACK_OPTIONS
+  CONFERENCE_SNACK_OPTIONS,
+  SOUP_OPTIONS,
+  BERMONTHS_PROMO_PACKAGES,
+  MINI_GRAZING_TABLE_INCLUSIONS
 } from "../data/cateringData";
 import {
   Check,
@@ -40,7 +43,8 @@ import {
   getFullyBookedDatesList,
   MAX_CONFIRMED_BOOKINGS_PER_DAY,
   formatTime12Hour,
-  getConferenceEndDate
+  getConferenceEndDate,
+  formatDisplayDate
 } from "../utils/bookingUtils";
 
 const STORAGE_KEY_DRAFT_BOOKING = "caterflow_client_draft_booking";
@@ -117,8 +121,10 @@ export default function PricingCalculator({
     if (draft?.serviceType) return draft.serviceType;
     if (draft?.selectedPkgId?.startsWith("food_tray")) return "food_tray";
     if (draft?.selectedPkgId?.startsWith("pica_pica")) return "pica_pica";
-    if (draft?.selectedPkgId?.startsWith("grazing_table")) return "grazing_table";
-    return "buffet"; // "buffet" | "food_tray" | "pica_pica" | "grazing_table"
+    if (draft?.selectedPkgId?.startsWith("grazing_table") || draft?.selectedPkgId?.startsWith("grazing_")) return "grazing_table";
+    if (draft?.selectedPkgId?.startsWith("pm_") || draft?.selectedPkgId?.startsWith("packed_meal")) return "packed_meal";
+    if (draft?.selectedPkgId === "promo_bermonths" || draft?.selectedPkgId?.startsWith("promo")) return "promo";
+    return "buffet"; // "buffet" | "food_tray" | "pica_pica" | "grazing_table" | "packed_meal" | "promo"
   });
 
   const [selectedPkgId, setSelectedPkgId] = useState(() => draft?.selectedPkgId || "package_4");
@@ -133,7 +139,23 @@ export default function PricingCalculator({
 
   const isFoodTray = activeServiceType === "food_tray" || currentPkg?.serviceType === "food_tray" || currentPkg?.id?.startsWith("food_tray");
   const isPicaPica = activeServiceType === "pica_pica" || currentPkg?.serviceType === "pica_pica" || currentPkg?.id?.startsWith("pica_pica");
-  const isGrazingTable = activeServiceType === "grazing_table" || currentPkg?.serviceType === "grazing_table" || currentPkg?.id?.startsWith("grazing_table");
+  const isGrazingTable = activeServiceType === "grazing_table" || currentPkg?.serviceType === "grazing_table" || currentPkg?.id?.startsWith("grazing_table") || currentPkg?.id?.startsWith("grazing_");
+  const isPackedMeal = activeServiceType === "packed_meal" || currentPkg?.serviceType === "packed_meal" || currentPkg?.id?.startsWith("pm_") || currentPkg?.id?.startsWith("packed_meal");
+  const isPromo = activeServiceType === "promo" || currentPkg?.serviceType === "promo" || currentPkg?.isPromo || currentPkg?.id === "promo_bermonths";
+
+  const [selectedPackedMealSet, setSelectedPackedMealSet] = useState(() => draft?.selectedPackedMealSet || "");
+
+  // Customizable Promo Date Range (Flyer Default: Sept 30 - Dec 31)
+  const [promoStartDate, setPromoStartDate] = useState(() => {
+    return draft?.promoStartDate || currentPkg?.promoStartDate || "2026-09-30";
+  });
+  const [promoEndDate, setPromoEndDate] = useState(() => {
+    return draft?.promoEndDate || currentPkg?.promoEndDate || "2026-12-31";
+  });
+  const [isCustomizingPromoDates, setIsCustomizingPromoDates] = useState(false);
+  const [selectedSoup, setSelectedSoup] = useState(() => {
+    return draft?.selectedSoup || "Hot Cream of Corn Soup";
+  });
 
   const displayPackages = useMemo(() => {
     if (isConference) return packagesList;
@@ -146,13 +168,23 @@ export default function PricingCalculator({
       return pica.length > 0 ? pica : packagesList;
     }
     if (activeServiceType === "grazing_table") {
-      const grazing = packagesList.filter(p => p.serviceType === "grazing_table" || p.id?.startsWith("grazing_table"));
+      const grazing = packagesList.filter(p => p.serviceType === "grazing_table" || p.id?.startsWith("grazing_table") || p.id?.startsWith("grazing_"));
       return grazing.length > 0 ? grazing : packagesList;
+    }
+    if (activeServiceType === "packed_meal") {
+      const packed = packagesList.filter(p => p.serviceType === "packed_meal" || p.id?.startsWith("pm_") || p.id?.startsWith("packed_meal"));
+      return packed.length > 0 ? packed : packagesList;
+    }
+    if (activeServiceType === "promo") {
+      const promos = packagesList.filter(p => p.serviceType === "promo" || p.isPromo || p.id?.startsWith("promo_"));
+      return promos.length > 0 ? promos : BERMONTHS_PROMO_PACKAGES;
     }
     return packagesList.filter(p =>
       p.serviceType !== "food_tray" && !p.id?.startsWith("food_tray") &&
       p.serviceType !== "pica_pica" && !p.id?.startsWith("pica_pica") &&
-      p.serviceType !== "grazing_table" && !p.id?.startsWith("grazing_table")
+      p.serviceType !== "grazing_table" && !p.id?.startsWith("grazing_table") && !p.id?.startsWith("grazing_") &&
+      p.serviceType !== "packed_meal" && !p.id?.startsWith("pm_") && !p.id?.startsWith("packed_meal") &&
+      p.serviceType !== "promo" && !p.id?.startsWith("promo_") && !p.isPromo
     );
   }, [packagesList, activeServiceType, isConference]);
 
@@ -295,53 +327,54 @@ export default function PricingCalculator({
   const [picaBeverage, setPicaBeverage] = useState(() => draft?.picaBeverage || "Choice of Juice (House Red Iced Tea)");
 
   const picaAllowances = useMemo(() => {
-    return currentPkg?.picaAllowances || {
-      sliders: 3,
-      canapes: 5,
-      fingerFood: 3,
-      miniDesserts: 2,
-      hasKakanin: false,
-      hasDiyStation: false
+    return {
+      sliders: typeof currentPkg?.picaAllowances?.sliders === "number" ? currentPkg.picaAllowances.sliders : 2,
+      canapes: typeof currentPkg?.picaAllowances?.canapes === "number" ? currentPkg.picaAllowances.canapes : 5,
+      fingerFood: typeof currentPkg?.picaAllowances?.fingerFood === "number" ? currentPkg.picaAllowances.fingerFood : 0,
+      miniDesserts: typeof currentPkg?.picaAllowances?.miniDesserts === "number" ? currentPkg.picaAllowances.miniDesserts : 0,
+      hasKakanin: Boolean(currentPkg?.picaAllowances?.hasKakanin),
+      hasDiyStation: Boolean(currentPkg?.picaAllowances?.hasDiyStation),
+      drinks: typeof currentPkg?.picaAllowances?.drinks === "number" ? currentPkg.picaAllowances.drinks : 0
     };
   }, [currentPkg]);
 
   const grazingAllowances = useMemo(() => {
-    return currentPkg?.grazingAllowances || {
-      canapes: 5,
-      sliders: 4,
-      hasDessertShots: currentPkg?.id?.includes("premium") || false
+    return {
+      canapes: typeof currentPkg?.grazingAllowances?.canapes === "number" ? currentPkg.grazingAllowances.canapes : 5,
+      sliders: typeof currentPkg?.grazingAllowances?.sliders === "number" ? currentPkg.grazingAllowances.sliders : 4,
+      hasDessertShots: Boolean(currentPkg?.grazingAllowances?.hasDessertShots || currentPkg?.id?.includes("premium"))
     };
   }, [currentPkg]);
 
   // Trim sliders if package has fewer
   useEffect(() => {
-    if (isPicaPica && selectedSliders.length > (picaAllowances.sliders || 3)) {
-      setSelectedSliders(prev => prev.slice(0, picaAllowances.sliders || 3));
-    } else if (isGrazingTable && selectedSliders.length > (grazingAllowances.sliders || 4)) {
-      setSelectedSliders(prev => prev.slice(0, grazingAllowances.sliders || 4));
+    const maxSliders = isPicaPica ? (picaAllowances.sliders ?? 3) : (grazingAllowances.sliders ?? 4);
+    if (selectedSliders.length > maxSliders) {
+      setSelectedSliders(prev => prev.slice(0, maxSliders));
     }
   }, [isPicaPica, isGrazingTable, picaAllowances.sliders, grazingAllowances.sliders]);
 
   // Trim canapes
   useEffect(() => {
-    if (isPicaPica && selectedCanapes.length > (picaAllowances.canapes || 5)) {
-      setSelectedCanapes(prev => prev.slice(0, picaAllowances.canapes || 5));
-    } else if (isGrazingTable && selectedCanapes.length > (grazingAllowances.canapes || 5)) {
-      setSelectedCanapes(prev => prev.slice(0, grazingAllowances.canapes || 5));
+    const maxCanapes = isPicaPica ? (picaAllowances.canapes ?? 5) : (grazingAllowances.canapes ?? 5);
+    if (selectedCanapes.length > maxCanapes) {
+      setSelectedCanapes(prev => prev.slice(0, maxCanapes));
     }
   }, [isPicaPica, isGrazingTable, picaAllowances.canapes, grazingAllowances.canapes]);
 
   // Trim finger foods
   useEffect(() => {
-    if (isPicaPica && selectedFingerFoods.length > (picaAllowances.fingerFood || 3)) {
-      setSelectedFingerFoods(prev => prev.slice(0, picaAllowances.fingerFood || 3));
+    const maxFinger = picaAllowances.fingerFood ?? 0;
+    if (isPicaPica && selectedFingerFoods.length > maxFinger) {
+      setSelectedFingerFoods(prev => prev.slice(0, maxFinger));
     }
   }, [isPicaPica, picaAllowances.fingerFood]);
 
   // Trim mini desserts
   useEffect(() => {
-    if (isPicaPica && selectedMiniDesserts.length > (picaAllowances.miniDesserts || 2)) {
-      setSelectedMiniDesserts(prev => prev.slice(0, picaAllowances.miniDesserts || 2));
+    const maxDesserts = picaAllowances.miniDesserts ?? 0;
+    if (isPicaPica && selectedMiniDesserts.length > maxDesserts) {
+      setSelectedMiniDesserts(prev => prev.slice(0, maxDesserts));
     }
   }, [isPicaPica, picaAllowances.miniDesserts]);
 
@@ -376,6 +409,7 @@ export default function PricingCalculator({
         selectedCanapes,
         selectedFingerFoods,
         selectedMiniDesserts,
+        selectedPackedMealSet,
         picaDiyStation,
         picaBeverage,
         otherDishes: {
@@ -517,9 +551,29 @@ export default function PricingCalculator({
       }
       return pax * (currentPkg.pricePerPax || 200);
     }
-    // Buffet or Pica Pica
+    if (isPicaPica) {
+      if (typeof currentPkg.price === "number" && currentPkg.price > 0) {
+        if (currentPkg.maxPax && pax > currentPkg.maxPax) {
+          const extraRate = currentPkg.pricePerPax || Math.round(currentPkg.price / currentPkg.maxPax);
+          return currentPkg.price + ((pax - currentPkg.maxPax) * extraRate);
+        }
+        return currentPkg.price;
+      }
+      return pax * (currentPkg.pricePerPax || 350);
+    }
+    if (isPackedMeal) {
+      return pax * (currentPkg.pricePerPax || 175);
+    }
+    if (isPromo) {
+      const basePax = currentPkg.minPax || (currentPkg.name?.includes("100") ? 100 : 50);
+      const basePrice = currentPkg.price || (basePax === 100 ? 75000 : 35000);
+      const extraRate = currentPkg.pricePerPax || (basePax === 100 ? 750 : 700);
+      if (pax <= basePax) return basePrice;
+      return basePrice + ((pax - basePax) * extraRate);
+    }
+    // Buffet
     return pax * (currentPkg.pricePerPax || 350);
-  }, [isConference, isGrazingTable, isFoodTray, currentPkg, pax, confDaysNum]);
+  }, [isConference, isGrazingTable, isFoodTray, isPicaPica, isPackedMeal, isPromo, currentPkg, pax, confDaysNum]);
 
   // Selected Special Dishes and Upgrade Fee (Main dishes + Special Side & Special Dessert or Special Sliders/Canapés)
   const selectedSpecialDishesList = useMemo(() => {
@@ -831,7 +885,7 @@ export default function PricingCalculator({
   };
 
   const handleSliderToggle = (dishName) => {
-    const maxAllowed = isPicaPica ? (picaAllowances.sliders || 3) : (grazingAllowances.sliders || 4);
+    const maxAllowed = isPicaPica ? (picaAllowances.sliders ?? 3) : (grazingAllowances.sliders ?? 4);
     if (selectedSliders.includes(dishName)) {
       setSelectedSliders(prev => prev.filter(n => n !== dishName));
     } else {
@@ -842,7 +896,7 @@ export default function PricingCalculator({
   };
 
   const handleCanapeToggle = (dishName) => {
-    const maxAllowed = isPicaPica ? (picaAllowances.canapes || 5) : (grazingAllowances.canapes || 5);
+    const maxAllowed = isPicaPica ? (picaAllowances.canapes ?? 5) : (grazingAllowances.canapes ?? 5);
     if (selectedCanapes.includes(dishName)) {
       setSelectedCanapes(prev => prev.filter(n => n !== dishName));
     } else {
@@ -853,7 +907,7 @@ export default function PricingCalculator({
   };
 
   const handleFingerFoodToggle = (dishName) => {
-    const maxAllowed = picaAllowances.fingerFood || 3;
+    const maxAllowed = picaAllowances.fingerFood ?? 0;
     if (selectedFingerFoods.includes(dishName)) {
       setSelectedFingerFoods(prev => prev.filter(n => n !== dishName));
     } else {
@@ -864,7 +918,7 @@ export default function PricingCalculator({
   };
 
   const handleMiniDessertToggle = (dishName) => {
-    const maxAllowed = picaAllowances.miniDesserts || 2;
+    const maxAllowed = picaAllowances.miniDesserts ?? 0;
     if (selectedMiniDesserts.includes(dishName)) {
       setSelectedMiniDesserts(prev => prev.filter(n => n !== dishName));
     } else {
@@ -1118,9 +1172,23 @@ export default function PricingCalculator({
       isFoodTray,
       isPicaPica,
       isGrazingTable,
-      serviceType: isPicaPica ? "pica_pica" : isGrazingTable ? "grazing_table" : isFoodTray ? "food_tray" : (currentPkg.serviceType || "buffet"),
+      isPackedMeal,
+      isPromo,
+      serviceType: isPromo ? "promo" : isPicaPica ? "pica_pica" : isGrazingTable ? "grazing_table" : isPackedMeal ? "packed_meal" : isFoodTray ? "food_tray" : (currentPkg.serviceType || "buffet"),
+      selectedPackedMealSet: isPackedMeal ? selectedPackedMealSet : null,
+      promoStartDate: isPromo ? (promoStartDate || "2026-09-30") : null,
+      promoEndDate: isPromo ? (promoEndDate || "2026-12-31") : null,
+      promoRunsText: isPromo ? `${promoStartDate} - ${promoEndDate}` : null,
+      selectedSoup: (isPromo || currentPkg.hasSoup) ? selectedSoup : null,
+      notes: clientInfo.notes || "",
+      hasMiniGrazingTable: Boolean(currentPkg.hasMiniGrazingTable || isPromo),
+      hasLechon: Boolean(currentPkg.hasLechon),
+      lechonDetails: currentPkg.lechonDetails || (currentPkg.hasLechon ? "1 Whole Lechon (50kg Live weight)" : null),
+      miniGrazingInclusions: currentPkg.miniGrazingInclusions || MINI_GRAZING_TABLE_INCLUSIONS,
       packagePrice: currentPkg.price || null,
       paxRange: currentPkg.paxRange || null,
+      packageInclusions: currentPkg.inclusions || [],
+      inclusions: currentPkg.inclusions || [],
       isConferenceBooking: isConference,
       conferenceDays: isConference ? confDaysNum : 1,
       conferenceEndDate: isConference ? getConferenceEndDate(clientInfo.eventDate, confDaysNum) : clientInfo.eventDate,
@@ -1507,6 +1575,41 @@ export default function PricingCalculator({
       return missing;
     }
 
+    // If Packed Meal / Bento Booking
+    if (isPackedMeal) {
+      const reqMains = currentPkg.mainDishesCount || 1;
+      const missingMains = reqMains - selectedMainDishes.length;
+      if (missingMains > 0) {
+        missing.push({
+          id: "pm-mains",
+          category: "Packed Meal Mains",
+          badge: "Main Dishes",
+          targetId: "section-packed-meal",
+          title: `Missing ${missingMains} Main Dish${missingMains > 1 ? "es" : ""}`,
+          detail: `${currentPkg.name} includes ${reqMains} main viand(s). Please select ${missingMains} more dish(es).`,
+          icon: "🍱",
+          required: reqMains,
+          current: selectedMainDishes.length
+        });
+      }
+      const reqSides = currentPkg.sideDishes?.regular || 1;
+      const curSides = [sideDishes.regular, sideDishes.regular2].filter(Boolean).length;
+      if (curSides < reqSides) {
+        missing.push({
+          id: "pm-sides",
+          category: "Packed Meal Sides",
+          badge: "Side Dishes",
+          targetId: "section-packed-meal",
+          title: `Missing ${reqSides - curSides} Side Dish${reqSides - curSides > 1 ? "es" : ""}`,
+          detail: `${currentPkg.name} includes ${reqSides} side dish(es).`,
+          icon: "🥗",
+          required: reqSides,
+          current: curSides
+        });
+      }
+      return missing;
+    }
+
     // 4. Main Dishes Selection (Standard Single-Event Booking)
     const missingMainCount = maxMainDishes - selectedMainDishes.length;
     if (missingMainCount > 0) {
@@ -1789,7 +1892,7 @@ export default function PricingCalculator({
                     </div>
                     {clientInfo.eventDate && (
                       <div style={{ fontSize: "0.76rem", color: "#1d4ed8", fontWeight: 600, marginTop: "6px" }}>
-                        📅 Multi-Day Schedule: <strong>{new Date(clientInfo.eventDate).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}</strong> to <strong>{new Date(getConferenceEndDate(clientInfo.eventDate, conferenceDays)).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}</strong>
+                        📅 Multi-Day Schedule: <strong>{formatDisplayDate(clientInfo.eventDate, { month: "short", day: "numeric", year: "numeric" })}</strong> to <strong>{formatDisplayDate(getConferenceEndDate(clientInfo.eventDate, conferenceDays), { month: "short", day: "numeric", year: "numeric" })}</strong>
                       </div>
                     )}
                   </div>
@@ -1915,6 +2018,62 @@ export default function PricingCalculator({
                 placeholder="e.g. Pasig City, Metro Manila"
               />
             </div>
+
+            {/* Note / Remarks for Quotation (e.g. Fabric for Skirting, Motif, Ingress Details) */}
+            <div className="form-group" style={{ gridColumn: "1 / -1" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                <label className="form-label" style={{ marginBottom: 0, fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span>📝 NOTE / REMARKS</span>
+                  <span style={{ fontSize: "0.68rem", color: "var(--gold-600)", background: "#fef3c7", border: "1px solid #fde68a", padding: "1px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                    Official Quotation Note
+                  </span>
+                </label>
+                <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
+                  e.g. Fabric motif, skirting color, special event setup
+                </span>
+              </div>
+              <textarea
+                className="form-input"
+                rows={2}
+                value={clientInfo.notes}
+                onChange={(e) => setClientInfo({ ...clientInfo, notes: e.target.value })}
+                placeholder="e.g. FABRIC FOR SKIRTING - ARMY GREEN"
+                style={{ fontSize: "0.85rem", resize: "vertical" }}
+              />
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "6px", alignItems: "center" }}>
+                <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", fontWeight: 600 }}>Quick Suggestions:</span>
+                {[
+                  "FABRIC FOR SKIRTING - ARMY GREEN",
+                  "FABRIC FOR SKIRTING - CREAM & GOLD",
+                  "FABRIC FOR SKIRTING - DUSTY BLUE",
+                  "FABRIC FOR SKIRTING - EMERALD GREEN",
+                  "BUFFET INGRESS AT 2:00 PM",
+                  "EARLY TABLE SET UP REQUIRED"
+                ].map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => {
+                      const current = clientInfo.notes ? clientInfo.notes.trim() : "";
+                      const updated = current ? (current.includes(tag) ? current : `${current}\n${tag}`) : tag;
+                      setClientInfo({ ...clientInfo, notes: updated });
+                    }}
+                    style={{
+                      fontSize: "0.68rem",
+                      background: "#f1f5f9",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "6px",
+                      padding: "2px 8px",
+                      cursor: "pointer",
+                      color: "#334155",
+                      fontWeight: 600
+                    }}
+                  >
+                    + {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -2029,7 +2188,7 @@ export default function PricingCalculator({
                   const firstPica = packagesList.find(p => p.serviceType === "pica_pica" || p.id?.startsWith("pica_pica"));
                   if (firstPica) {
                     setSelectedPkgId(firstPica.id);
-                    setPax(Math.max(firstPica.minPax || 50, 50));
+                    setPax(firstPica.minPax || 30);
                   }
                   setIsServiceCharge(true);
                 }}
@@ -2054,11 +2213,11 @@ export default function PricingCalculator({
                       Pica Pica Station
                     </span>
                     <span style={{ fontSize: "0.64rem", background: "#d1fae5", color: "#065f46", padding: "1px 5px", borderRadius: "8px", fontWeight: 800 }}>
-                      ₱300+
+                      Cocktail
                     </span>
                   </div>
                   <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
-                    Cocktail sliders, canapés, finger foods & desserts
+                    Cocktail sliders, canapés, cured meats & grazing bites
                   </div>
                 </div>
               </button>
@@ -2068,10 +2227,10 @@ export default function PricingCalculator({
                 type="button"
                 onClick={() => {
                   setActiveServiceType("grazing_table");
-                  const firstGrazing = packagesList.find(p => p.serviceType === "grazing_table" || p.id?.startsWith("grazing_table"));
+                  const firstGrazing = packagesList.find(p => p.serviceType === "grazing_table" || p.id?.startsWith("grazing_table") || p.id?.startsWith("grazing_"));
                   if (firstGrazing) {
                     setSelectedPkgId(firstGrazing.id);
-                    setPax(firstGrazing.minPax || 100);
+                    setPax(firstGrazing.minPax || 30);
                   }
                   setIsServiceCharge(true);
                 }}
@@ -2104,6 +2263,273 @@ export default function PricingCalculator({
                   </div>
                 </div>
               </button>
+
+              {/* 5. Packed Meals / Bento */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveServiceType("packed_meal");
+                  const firstPacked = packagesList.find(p => p.serviceType === "packed_meal" || p.id?.startsWith("pm_") || p.id?.startsWith("packed_meal"));
+                  if (firstPacked) {
+                    setSelectedPkgId(firstPacked.id);
+                    setPax(firstPacked.minPax || 50);
+                  }
+                  setIsServiceCharge(false);
+                  setDeliveryLocation("iloilo_free");
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                  padding: "0.85rem 0.9rem",
+                  borderRadius: "10px",
+                  border: activeServiceType === "packed_meal" ? "2px solid #ea580c" : "1px solid transparent",
+                  background: activeServiceType === "packed_meal" ? "#ffffff" : "transparent",
+                  boxShadow: activeServiceType === "packed_meal" ? "0 4px 12px rgba(234, 88, 12, 0.15)" : "none",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  transition: "all 0.2s ease"
+                }}
+              >
+                <span style={{ fontSize: "1.4rem" }}>🍱</span>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                    <span style={{ fontWeight: 800, fontSize: "0.88rem", color: activeServiceType === "packed_meal" ? "#c2410c" : "var(--text-primary)" }}>
+                      Packed Meals
+                    </span>
+                    <span style={{ fontSize: "0.64rem", background: "#ffedd5", color: "#c2410c", padding: "1px 5px", borderRadius: "8px", fontWeight: 800 }}>
+                      Bento
+                    </span>
+                  </div>
+                  <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
+                    Individually packed bento meals & sets (Min 50 Pax)
+                  </div>
+                </div>
+              </button>
+
+              {/* 6. Bermonths Holiday Promo */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveServiceType("promo");
+                  const promoPkg = packagesList.find(p => p.serviceType === "promo" || p.id === "promo_bermonths" || p.isPromo) || BERMONTHS_PROMO_PACKAGES[0];
+                  if (promoPkg) {
+                    setSelectedPkgId(promoPkg.id);
+                    setPax(promoPkg.minPax || 50);
+                    if (promoPkg.promoStartDate) setPromoStartDate(promoPkg.promoStartDate);
+                    if (promoPkg.promoEndDate) setPromoEndDate(promoPkg.promoEndDate);
+                  }
+                  setIsServiceCharge(false);
+                  setDeliveryLocation("iloilo_free");
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                  padding: "0.85rem 0.9rem",
+                  borderRadius: "10px",
+                  border: activeServiceType === "promo" ? "2px solid #dc2626" : "1px solid transparent",
+                  background: activeServiceType === "promo" ? "#ffffff" : "transparent",
+                  boxShadow: activeServiceType === "promo" ? "0 4px 14px rgba(220, 38, 38, 0.18)" : "none",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  transition: "all 0.2s ease"
+                }}
+              >
+                <span style={{ fontSize: "1.4rem" }}>🎄</span>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                    <span style={{ fontWeight: 800, fontSize: "0.88rem", color: activeServiceType === "promo" ? "#b91c1c" : "var(--text-primary)" }}>
+                      Bermonths Promo
+                    </span>
+                    <span style={{ fontSize: "0.64rem", background: "#fee2e2", color: "#991b1b", padding: "1px 5px", borderRadius: "8px", fontWeight: 800 }}>
+                      From ₱35k
+                    </span>
+                  </div>
+                  <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
+                    50 & 100 PAX + Mini Grazing Table & Lechon
+                  </div>
+                </div>
+              </button>
+            </div>
+          )}
+
+          {/* Bermonths Holiday Promo Notice & Customizable Date Range Banner */}
+          {isPromo && !isConference && (
+            <div style={{
+              background: "linear-gradient(135deg, #fef2f2 0%, #fff1f2 50%, #fffbeb 100%)",
+              border: "2px solid #ef4444",
+              borderRadius: "14px",
+              padding: "1.25rem 1.4rem",
+              marginBottom: "1.25rem",
+              boxShadow: "0 4px 16px rgba(239, 68, 68, 0.12)",
+              position: "relative"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.75rem", marginBottom: "0.85rem", borderBottom: "1px dashed #fca5a5", paddingBottom: "0.85rem" }}>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: "1.5rem" }}>🎄</span>
+                    <h3 style={{ margin: 0, color: "#991b1b", fontSize: "1.2rem", fontWeight: 800 }}>
+                      Palatable Bermonths Promo!
+                    </h3>
+                    <span style={{ fontSize: "0.74rem", background: "#fee2e2", color: "#991b1b", border: "1px solid #fecaca", padding: "2px 8px", borderRadius: "10px", fontWeight: 800 }}>
+                      ₱{(currentPkg.price || 35000).toLocaleString()}.00 • {currentPkg.paxRange || "GOOD FOR " + (currentPkg.minPax || 50) + " PAX"}
+                    </span>
+                    {currentPkg.hasLechon && (
+                      <span style={{ fontSize: "0.74rem", background: "#fef3c7", color: "#b45309", border: "1px solid #fde68a", padding: "2px 8px", borderRadius: "10px", fontWeight: 800 }}>
+                        🐷 1 Whole Lechon (50kg) Included!
+                      </span>
+                    )}
+                    <span style={{ fontSize: "0.74rem", background: "#fef3c7", color: "#92400e", padding: "2px 8px", borderRadius: "10px", fontWeight: 700 }}>
+                      Full Catering Services
+                    </span>
+                  </div>
+                  <p style={{ margin: "4px 0 0", fontSize: "0.82rem", color: "#7f1d1d", fontStyle: "italic" }}>
+                    Good Food, Brighter Gatherings ♡ — Make your holiday gatherings extra special with us!
+                  </p>
+                </div>
+
+                {/* Customizable Promo Dates Controls */}
+                <div style={{ background: "#ffffff", padding: "0.6rem 0.85rem", borderRadius: "10px", border: "1px solid #fecaca", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ fontSize: "0.74rem", fontWeight: 800, color: "#991b1b", display: "flex", alignItems: "center", gap: "4px" }}>
+                      📅 Customizable Promo Validity
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomizingPromoDates(prev => !prev)}
+                      style={{ fontSize: "0.68rem", color: "#b91c1c", background: "none", border: "none", textDecoration: "underline", cursor: "pointer", fontWeight: 700 }}
+                    >
+                      {isCustomizingPromoDates ? "Hide Editor" : "Edit Dates"}
+                    </button>
+                  </div>
+                  
+                  {isCustomizingPromoDates ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        <span style={{ fontSize: "0.65rem", color: "#64748b" }}>Starts:</span>
+                        <input
+                          type="date"
+                          className="form-input"
+                          style={{ padding: "3px 6px", fontSize: "0.75rem", width: "125px" }}
+                          value={promoStartDate}
+                          onChange={(e) => setPromoStartDate(e.target.value)}
+                        />
+                      </div>
+                      <span style={{ color: "#94a3b8", fontSize: "0.8rem", marginTop: "12px" }}>—</span>
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        <span style={{ fontSize: "0.65rem", color: "#64748b" }}>Ends:</span>
+                        <input
+                          type="date"
+                          className="form-input"
+                          style={{ padding: "3px 6px", fontSize: "0.75rem", width: "125px" }}
+                          value={promoEndDate}
+                          onChange={(e) => setPromoEndDate(e.target.value)}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPromoStartDate("2026-09-30");
+                          setPromoEndDate("2026-12-31");
+                        }}
+                        style={{ fontSize: "0.68rem", padding: "4px 6px", borderRadius: "6px", border: "1px solid #cbd5e1", background: "#f8fafc", cursor: "pointer", marginTop: "12px" }}
+                        title="Reset to default flyer dates"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#1e293b", fontFamily: "monospace" }}>
+                      {promoStartDate} to {promoEndDate}
+                    </div>
+                  )}
+
+                  {/* Real-time date status check against client's event date */}
+                  {clientInfo.eventDate && (
+                    <div style={{ fontSize: "0.72rem", fontWeight: 700, marginTop: "2px" }}>
+                      {clientInfo.eventDate >= promoStartDate && clientInfo.eventDate <= promoEndDate ? (
+                        <span style={{ color: "#15803d", display: "flex", alignItems: "center", gap: "4px" }}>
+                          ✅ Selected date ({clientInfo.eventDate}) is within promo period!
+                        </span>
+                      ) : (
+                        <span style={{ color: "#b45309", display: "flex", alignItems: "center", gap: "4px" }}>
+                          ⚠️ Event date ({clientInfo.eventDate}) is outside promo window ({promoStartDate} – {promoEndDate}).
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* What is Included Grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "0.75rem", fontSize: "0.78rem", color: "#7f1d1d" }}>
+                <div>
+                  <strong style={{ color: "#991b1b" }}>🍽️ Menu Inclusions ({currentPkg.name?.includes("100") ? "100 PAX" : "50 PAX"}):</strong>
+                  <ul style={{ margin: "3px 0 0", paddingLeft: "1.1rem" }}>
+                    <li><strong>{currentPkg.mainDishesCount || (currentPkg.name?.includes("100") ? 3 : 2)} Regular Mains</strong> (Choice of Beef, Pork, Chicken, Seafood)</li>
+                    <li><strong>1 Regular Side</strong> (Pasta, Noodles, or Vegetable dish)</li>
+                    <li><strong>1 Regular Dessert</strong> (Filipino festive sweet dessert)</li>
+                    <li><strong>Hot Soup & Rice</strong> (Hot Soup + Steamed Jasmine Rice)</li>
+                    <li><strong>Beverage</strong> (Chilled Soda or Fruit Juice)</li>
+                    {currentPkg.hasLechon && (
+                      <li style={{ color: "#b45309", fontWeight: 700 }}>
+                        🐷 <strong>1 Whole Lechon (50kg Live weight)</strong> Included!
+                      </li>
+                    )}
+                  </ul>
+                </div>
+                <div>
+                  <strong style={{ color: "#991b1b" }}>🧀 Mini Grazing Table Inclusions:</strong>
+                  <ul style={{ margin: "3px 0 0", paddingLeft: "1.1rem" }}>
+                    <li><strong>1 BIG Charcuterie Platter</strong> with Salami or Coppa Ham</li>
+                    <li><strong>1 Big Fruit Platter</strong> (Fresh seasonal fruits)</li>
+                    <li><strong>DIY Nachos</strong> with Cheese Sauce Fountain</li>
+                    <li><strong>Artisan Canapés:</strong> Truffle Egg Bites, Tuna Salad Bites, Chicken Ala King Bites, Hungarian Sausage, Cheese & Olives Skewers</li>
+                    <li><strong>Mini Charcuterie Cups</strong> for guests</li>
+                  </ul>
+                </div>
+                <div>
+                  <strong style={{ color: "#991b1b" }}>✨ Full Setup & Service Inclusions:</strong>
+                  <ul style={{ margin: "3px 0 0", paddingLeft: "1.1rem" }}>
+                    <li><strong>Rustic Buffet Table Set up</strong> with chafing dishes & styling</li>
+                    <li><strong>Tables and chairs for guests</strong> with table skirting, chair covers, simple centerpieces & fine dining setup</li>
+                    <li><strong>Uniformed friendly servers/staff</strong> (4hrs full catering service)</li>
+                    <li><strong>Service water</strong> and ice station</li>
+                    <li><strong>Free transportation:</strong> City of Iloilo, Cabatuan, Sta. Barbara, Pavia, San Miguel, Janiuay, Maasin</li>
+                    <li><strong>Basic Balloon Backdrop</strong></li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Packed Meal Flyer Notice Banner */}
+          {isPackedMeal && !isConference && (
+            <div style={{
+              background: "linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)",
+              border: "1.5px solid #fdba74",
+              borderRadius: "12px",
+              padding: "1rem 1.25rem",
+              marginBottom: "1.25rem"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ fontSize: "1.2rem" }}>🍱</span>
+                  <strong style={{ color: "#9a3412", fontSize: "0.92rem" }}>
+                    The Palatable Packed Meal & Bento Box Service Notice
+                  </strong>
+                </div>
+                <span style={{ fontSize: "0.74rem", background: "#fed7aa", color: "#7c2d12", padding: "2px 8px", borderRadius: "8px", fontWeight: 700 }}>
+                  Min 50 PAX • Bento Packaging Included
+                </span>
+              </div>
+              <div style={{ fontSize: "0.78rem", color: "#7c2d12", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "0.5rem" }}>
+                <div>• <strong>Minimum Order</strong>: 50 PAX minimum guarantee for all packed meal packages.</div>
+                <div>• <strong>Individually Packed</strong>: Hygienic partitioned food-grade bento boxes with disposable cutlery, napkin & toothpick.</div>
+                <div>• <strong>Chef Pre-Sets or Custom</strong>: Choose chef-curated combos (Option A, B, or C) or customize your viands.</div>
+                <div>• <strong>Free Local Delivery</strong>: Qualifying orders within Iloilo City, Pavia, Sta. Barbara, Cabatuan, etc.</div>
+              </div>
             </div>
           )}
 
@@ -2754,7 +3180,7 @@ export default function PricingCalculator({
                 <span>Customize Pica Pica Cocktail Station Food Choices</span>
               </div>
               <span style={{ fontSize: "0.78rem", color: "#065f46", fontWeight: 700, background: "#d1fae5", padding: "3px 10px", borderRadius: "12px", border: "1px solid #a7f3d0" }}>
-                {currentPkg.name} • ₱{currentPkg.pricePerPax}/pax (Min 50 Pax)
+                {currentPkg.name} • {currentPkg.price ? `₱${currentPkg.price.toLocaleString()} (${currentPkg.paxRange || `${currentPkg.minPax}-${currentPkg.maxPax} PAX`})` : `₱${currentPkg.pricePerPax}/pax (Min ${currentPkg.minPax || 50} Pax)`}
               </span>
             </div>
 
@@ -2798,31 +3224,67 @@ export default function PricingCalculator({
                   }}>
                     🥪 Canapés: {selectedCanapes.length}/{picaAllowances.canapes || 5}
                   </span>
-                  <span style={{
-                    fontSize: "0.74rem",
-                    fontWeight: 700,
-                    padding: "3px 8px",
-                    borderRadius: "8px",
-                    background: selectedFingerFoods.length === (picaAllowances.fingerFood || 3) ? "#059669" : "#ffffff",
-                    color: selectedFingerFoods.length === (picaAllowances.fingerFood || 3) ? "#ffffff" : "#065f46",
-                    border: "1px solid #059669"
-                  }}>
-                    🍗 Finger Food: {selectedFingerFoods.length}/{picaAllowances.fingerFood || 3}
-                  </span>
-                  <span style={{
-                    fontSize: "0.74rem",
-                    fontWeight: 700,
-                    padding: "3px 8px",
-                    borderRadius: "8px",
-                    background: selectedMiniDesserts.length === (picaAllowances.miniDesserts || 2) ? "#059669" : "#ffffff",
-                    color: selectedMiniDesserts.length === (picaAllowances.miniDesserts || 2) ? "#ffffff" : "#065f46",
-                    border: "1px solid #059669"
-                  }}>
-                    🍮 Desserts: {selectedMiniDesserts.length}/{picaAllowances.miniDesserts || 2}
-                  </span>
+                  {(picaAllowances.fingerFood || 0) > 0 && (
+                    <span style={{
+                      fontSize: "0.74rem",
+                      fontWeight: 700,
+                      padding: "3px 8px",
+                      borderRadius: "8px",
+                      background: selectedFingerFoods.length === picaAllowances.fingerFood ? "#059669" : "#ffffff",
+                      color: selectedFingerFoods.length === picaAllowances.fingerFood ? "#ffffff" : "#065f46",
+                      border: "1px solid #059669"
+                    }}>
+                      🍗 Finger Food: {selectedFingerFoods.length}/{picaAllowances.fingerFood}
+                    </span>
+                  )}
+                  {(picaAllowances.miniDesserts || 0) > 0 && (
+                    <span style={{
+                      fontSize: "0.74rem",
+                      fontWeight: 700,
+                      padding: "3px 8px",
+                      borderRadius: "8px",
+                      background: selectedMiniDesserts.length === picaAllowances.miniDesserts ? "#059669" : "#ffffff",
+                      color: selectedMiniDesserts.length === picaAllowances.miniDesserts ? "#ffffff" : "#065f46",
+                      border: "1px solid #059669"
+                    }}>
+                      🍮 Desserts: {selectedMiniDesserts.length}/{picaAllowances.miniDesserts}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
+
+            {/* Dedicated Grazing & Charcuterie Inclusions Card for Petite / Party Packages */}
+            {currentPkg.inclusions && (currentPkg.id.includes("petite") || currentPkg.id.includes("party")) && (
+              <div style={{
+                background: "linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)",
+                border: "1.5px solid #86efac",
+                borderRadius: "12px",
+                padding: "1.1rem 1.25rem",
+                marginBottom: "1.5rem"
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "0.65rem" }}>
+                  <span style={{ fontSize: "1.3rem" }}>🧀</span>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: "0.98rem", fontWeight: 800, color: "#14532d" }}>
+                      {currentPkg.name} — Included Artisan Charcuterie & Grazing Spread
+                    </h4>
+                    <div style={{ fontSize: "0.76rem", color: "#166534" }}>
+                      Curated artisanal board inclusions from the official Palatable Catering spread
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "0.45rem", fontSize: "0.8rem", color: "#15803d" }}>
+                  {currentPkg.inclusions.map((inc, i) => (
+                    <div key={i} style={{ background: "#ffffff", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid #bbf7d0", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span style={{ color: "#16a34a", fontWeight: 800 }}>✔</span>
+                      <span style={{ fontWeight: 600, color: "#14532d" }}>{inc}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* 1. SLIDERS (Regular & Special) */}
             <div style={{ marginBottom: "1.75rem" }}>
@@ -2931,94 +3393,98 @@ export default function PricingCalculator({
             </div>
 
             {/* 3. FINGER FOOD */}
-            <div style={{ marginBottom: "1.75rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
-                <div>
-                  <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "#1e293b", display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span>🍗 Finger Food Selection</span>
-                    <span style={{ fontSize: "0.75rem", color: "#047857", background: "#d1fae5", padding: "2px 8px", borderRadius: "10px", border: "1px solid #a7f3d0" }}>
-                      Choose {picaAllowances.fingerFood || 3} Items ({selectedFingerFoods.length} selected)
-                    </span>
-                  </h4>
-                  <p style={{ margin: "3px 0 0 0", fontSize: "0.76rem", color: "var(--text-muted)" }}>
-                    Savory deep-fried and grilled cocktail delights.
-                  </p>
+            {(picaAllowances.fingerFood || 0) > 0 && (
+              <div style={{ marginBottom: "1.75rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "#1e293b", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span>🍗 Finger Food Selection</span>
+                      <span style={{ fontSize: "0.75rem", color: "#047857", background: "#d1fae5", padding: "2px 8px", borderRadius: "10px", border: "1px solid #a7f3d0" }}>
+                        Choose {picaAllowances.fingerFood} Items ({selectedFingerFoods.length} selected)
+                      </span>
+                    </h4>
+                    <p style={{ margin: "3px 0 0 0", fontSize: "0.76rem", color: "var(--text-muted)" }}>
+                      Savory deep-fried and grilled cocktail delights.
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: "0.55rem" }}>
+                  {(dishesMenu.fingerFood || []).map(item => {
+                    const isSel = selectedFingerFoods.includes(item.name);
+                    return (
+                      <div
+                        key={item.id || item.name}
+                        onClick={() => handleFingerFoodToggle(item.name)}
+                        style={{
+                          padding: "0.65rem 0.8rem",
+                          borderRadius: "8px",
+                          border: isSel ? "2px solid #059669" : "1px solid var(--border-subtle)",
+                          background: isSel ? "#ecfdf5" : "#ffffff",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          transition: "all 0.15s ease"
+                        }}
+                      >
+                        <span style={{ fontSize: "0.82rem", fontWeight: isSel ? 800 : 600, color: isSel ? "#065f46" : "var(--text-primary)" }}>
+                          {item.name}
+                        </span>
+                        {isSel && <Check size={16} color="#059669" />}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: "0.55rem" }}>
-                {(dishesMenu.fingerFood || []).map(item => {
-                  const isSel = selectedFingerFoods.includes(item.name);
-                  return (
-                    <div
-                      key={item.id || item.name}
-                      onClick={() => handleFingerFoodToggle(item.name)}
-                      style={{
-                        padding: "0.65rem 0.8rem",
-                        borderRadius: "8px",
-                        border: isSel ? "2px solid #059669" : "1px solid var(--border-subtle)",
-                        background: isSel ? "#ecfdf5" : "#ffffff",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        transition: "all 0.15s ease"
-                      }}
-                    >
-                      <span style={{ fontSize: "0.82rem", fontWeight: isSel ? 800 : 600, color: isSel ? "#065f46" : "var(--text-primary)" }}>
-                        {item.name}
-                      </span>
-                      {isSel && <Check size={16} color="#059669" />}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            )}
 
             {/* 4. MINI DESSERT CUPS */}
-            <div style={{ marginBottom: "1.75rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
-                <div>
-                  <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "#1e293b", display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span>🍮 Mini Dessert Cups</span>
-                    <span style={{ fontSize: "0.75rem", color: "#047857", background: "#d1fae5", padding: "2px 8px", borderRadius: "10px", border: "1px solid #a7f3d0" }}>
-                      Choose {picaAllowances.miniDesserts || 2} Dessert Cups ({selectedMiniDesserts.length} selected)
-                    </span>
-                  </h4>
-                  <p style={{ margin: "3px 0 0 0", fontSize: "0.76rem", color: "var(--text-muted)" }}>
-                    Individual chilled shooters, parfaits, and cheesecakes.
-                  </p>
+            {(picaAllowances.miniDesserts || 0) > 0 && (
+              <div style={{ marginBottom: "1.75rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "#1e293b", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span>🍮 Mini Dessert Cups</span>
+                      <span style={{ fontSize: "0.75rem", color: "#047857", background: "#d1fae5", padding: "2px 8px", borderRadius: "10px", border: "1px solid #a7f3d0" }}>
+                        Choose {picaAllowances.miniDesserts} Dessert Cups ({selectedMiniDesserts.length} selected)
+                      </span>
+                    </h4>
+                    <p style={{ margin: "3px 0 0 0", fontSize: "0.76rem", color: "var(--text-muted)" }}>
+                      Individual chilled shooters, parfaits, and cheesecakes.
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: "0.55rem" }}>
+                  {(dishesMenu.miniDesserts || []).map(item => {
+                    const isSel = selectedMiniDesserts.includes(item.name);
+                    return (
+                      <div
+                        key={item.id || item.name}
+                        onClick={() => handleMiniDessertToggle(item.name)}
+                        style={{
+                          padding: "0.65rem 0.8rem",
+                          borderRadius: "8px",
+                          border: isSel ? "2px solid #059669" : "1px solid var(--border-subtle)",
+                          background: isSel ? "#ecfdf5" : "#ffffff",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          transition: "all 0.15s ease"
+                        }}
+                      >
+                        <span style={{ fontSize: "0.82rem", fontWeight: isSel ? 800 : 600, color: isSel ? "#065f46" : "var(--text-primary)" }}>
+                          {item.name}
+                        </span>
+                        {isSel && <Check size={16} color="#059669" />}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: "0.55rem" }}>
-                {(dishesMenu.miniDesserts || []).map(item => {
-                  const isSel = selectedMiniDesserts.includes(item.name);
-                  return (
-                    <div
-                      key={item.id || item.name}
-                      onClick={() => handleMiniDessertToggle(item.name)}
-                      style={{
-                        padding: "0.65rem 0.8rem",
-                        borderRadius: "8px",
-                        border: isSel ? "2px solid #059669" : "1px solid var(--border-subtle)",
-                        background: isSel ? "#ecfdf5" : "#ffffff",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        transition: "all 0.15s ease"
-                      }}
-                    >
-                      <span style={{ fontSize: "0.82rem", fontWeight: isSel ? 800 : 600, color: isSel ? "#065f46" : "var(--text-primary)" }}>
-                        {item.name}
-                      </span>
-                      {isSel && <Check size={16} color="#059669" />}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            )}
 
             {/* 5. Special Inclusions for Option 3 Grand Tier */}
             {picaAllowances.hasKakanin && (
@@ -3077,44 +3543,46 @@ export default function PricingCalculator({
             )}
 
             {/* 6. Choice of Beverage: Juice or Coffee */}
-            <div style={{ background: "#f8fafc", border: "1px solid var(--border-subtle)", borderRadius: "10px", padding: "1rem" }}>
-              <label className="form-label" style={{ fontSize: "0.85rem", fontWeight: 800, color: "var(--text-primary)", marginBottom: "0.4rem" }}>
-                🥤 Choice of Beverage (Included):
-              </label>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-                <button
-                  type="button"
-                  onClick={() => setPicaBeverage("Choice of Juice (House Red Iced Tea)")}
-                  style={{
-                    padding: "0.75rem",
-                    borderRadius: "8px",
-                    border: picaBeverage.includes("Juice") ? "2px solid #059669" : "1px solid var(--border-subtle)",
-                    background: picaBeverage.includes("Juice") ? "#ecfdf5" : "transparent",
-                    color: picaBeverage.includes("Juice") ? "#065f46" : "var(--text-secondary)",
-                    fontWeight: 700,
-                    cursor: "pointer"
-                  }}
-                >
-                  🍹 Choice of Juice (House Red Iced Tea)
-                </button>
+            {((picaAllowances.drinks || 0) > 0 || (!currentPkg.id.includes("petite") && !currentPkg.id.includes("party"))) && (
+              <div style={{ background: "#f8fafc", border: "1px solid var(--border-subtle)", borderRadius: "10px", padding: "1rem" }}>
+                <label className="form-label" style={{ fontSize: "0.85rem", fontWeight: 800, color: "var(--text-primary)", marginBottom: "0.4rem" }}>
+                  🥤 Choice of Beverage (Included):
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                  <button
+                    type="button"
+                    onClick={() => setPicaBeverage("Choice of Juice (House Red Iced Tea)")}
+                    style={{
+                      padding: "0.75rem",
+                      borderRadius: "8px",
+                      border: picaBeverage.includes("Juice") ? "2px solid #059669" : "1px solid var(--border-subtle)",
+                      background: picaBeverage.includes("Juice") ? "#ecfdf5" : "transparent",
+                      color: picaBeverage.includes("Juice") ? "#065f46" : "var(--text-secondary)",
+                      fontWeight: 700,
+                      cursor: "pointer"
+                    }}
+                  >
+                    🍹 Choice of Juice (House Red Iced Tea)
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setPicaBeverage("Freshly Brewed Hot Coffee")}
-                  style={{
-                    padding: "0.75rem",
-                    borderRadius: "8px",
-                    border: picaBeverage.includes("Coffee") ? "2px solid #059669" : "1px solid var(--border-subtle)",
-                    background: picaBeverage.includes("Coffee") ? "#ecfdf5" : "transparent",
-                    color: picaBeverage.includes("Coffee") ? "#065f46" : "var(--text-secondary)",
-                    fontWeight: 700,
-                    cursor: "pointer"
-                  }}
-                >
-                  ☕ Freshly Brewed Hot Coffee
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setPicaBeverage("Freshly Brewed Hot Coffee")}
+                    style={{
+                      padding: "0.75rem",
+                      borderRadius: "8px",
+                      border: picaBeverage.includes("Coffee") ? "2px solid #059669" : "1px solid var(--border-subtle)",
+                      background: picaBeverage.includes("Coffee") ? "#ecfdf5" : "transparent",
+                      color: picaBeverage.includes("Coffee") ? "#065f46" : "var(--text-secondary)",
+                      fontWeight: 700,
+                      cursor: "pointer"
+                    }}
+                  >
+                    ☕ Freshly Brewed Hot Coffee
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         ) : isGrazingTable ? (
           <div className="card-section" id="section-grazing-curation">
@@ -3149,51 +3617,41 @@ export default function PricingCalculator({
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "0.6rem", fontSize: "0.8rem", color: "#4c1d95" }}>
-                <div style={{ background: "#ffffff", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #e9d5ff" }}>
-                  🍖 <strong>5 Kilos of Italian Cured Meats</strong> (Prosciutto, Salami, Coppa Ham)
-                </div>
-                <div style={{ background: "#ffffff", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #e9d5ff" }}>
-                  🧀 <strong>5 Types of Imported Cheeses</strong> (Brie, Gouda, Cheddar, Emmental, Blue)
-                </div>
-                <div style={{ background: "#ffffff", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #e9d5ff" }}>
-                  🍇 <strong>5 Big Seasonal Fruit Platters</strong> (Grapes, Berries, Kiwi, Melons)
-                </div>
-                <div style={{ background: "#ffffff", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #e9d5ff" }}>
-                  🌭 <strong>Hungarian Sausage Platter</strong> with gourmet mustard dip
-                </div>
-                <div style={{ background: "#ffffff", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #e9d5ff" }}>
-                  🥖 <strong>Artisan Breadbasket with Jam and Bread</strong>
-                </div>
-                <div style={{ background: "#ffffff", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #e9d5ff" }}>
-                  🥨 <strong>Wafers, Saltin Crackers & Bretzels</strong>
-                </div>
-                <div style={{ background: "#ffffff", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #e9d5ff" }}>
-                  🥒 <strong>Vegetable Sticks with Creamy Dips</strong>
-                </div>
-                <div style={{ background: "#ffffff", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #e9d5ff" }}>
-                  🍸 <strong>Olives, Cocktail Onions & Grazing Cups</strong>
-                </div>
-                <div style={{ background: "#ffffff", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #e9d5ff" }}>
-                  🥜 <strong>Mix Assorted Nuts & Dried Fruits</strong>
-                </div>
-                <div style={{ background: "#ffffff", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #e9d5ff" }}>
-                  🧀 <strong>Nachos Station with warm cheese & salsa</strong>
-                </div>
+                {(currentPkg.inclusions && currentPkg.inclusions.length > 0
+                  ? currentPkg.inclusions
+                  : [
+                      "5 Kilos of Italian Cured Meats (Prosciutto, Salami, Mortadella, Coppa)",
+                      "5 Types of Premium Imported Cheeses (Brie, Gouda, Cheddar, Blue Cheese, etc.)",
+                      "5 Big Seasonal Fresh Fruit Platters",
+                      "Hungarian Sausage Platter with gourmet mustard dip",
+                      "Artisan Breadbasket with Jam and Bread",
+                      "Wafers, Saltin Crackers & Bretzels",
+                      "Vegetable Sticks with Creamy Dips",
+                      "Olives, Cocktail Onions & Grazing Cups",
+                      "Mix Assorted Nuts & Dried Fruits",
+                      "Complete Nachos Station with warm cheese sauce & salsa"
+                    ]
+                ).map((inc, i) => (
+                  <div key={i} style={{ background: "#ffffff", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #e9d5ff", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ color: "#7c3aed", fontWeight: 800 }}>✔</span>
+                    <strong>{inc}</strong>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* Custom Canapés (5 choices) */}
+            {/* Custom Canapés */}
             <div style={{ marginBottom: "1.5rem" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
                 <div>
                   <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "#1e293b", display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span>🥪 Choose 5 Canapés for your Grazing Table</span>
+                    <span>🥪 Choose {grazingAllowances.canapes || 5} Canapés for your Grazing Table</span>
                     <span style={{ fontSize: "0.75rem", color: "#7c3aed", background: "#f5f3ff", padding: "2px 8px", borderRadius: "10px", border: "1px solid #ddd6fe" }}>
-                      {selectedCanapes.length} of 5 selected
+                      {selectedCanapes.length} of {grazingAllowances.canapes || 5} selected
                     </span>
                   </h4>
                   <p style={{ margin: "3px 0 0 0", fontSize: "0.76rem", color: "var(--text-muted)" }}>
-                    Select 5 freshly styled finger canapés. Special options add +₱45/pax upgrade.
+                    Select {grazingAllowances.canapes || 5} freshly styled finger canapés. Special options add +₱45/pax upgrade.
                   </p>
                 </div>
               </div>
@@ -3235,18 +3693,18 @@ export default function PricingCalculator({
               </div>
             </div>
 
-            {/* Custom Sliders (4 choices) */}
+            {/* Custom Sliders */}
             <div style={{ marginBottom: "1.5rem" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
                 <div>
                   <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "#1e293b", display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span>🍔 Choose 4 Sliders for your Grazing Table</span>
+                    <span>🍔 Choose {grazingAllowances.sliders || 4} Sliders for your Grazing Table</span>
                     <span style={{ fontSize: "0.75rem", color: "#7c3aed", background: "#f5f3ff", padding: "2px 8px", borderRadius: "10px", border: "1px solid #ddd6fe" }}>
-                      {selectedSliders.length} of 4 selected
+                      {selectedSliders.length} of {grazingAllowances.sliders || 4} selected
                     </span>
                   </h4>
                   <p style={{ margin: "3px 0 0 0", fontSize: "0.76rem", color: "var(--text-muted)" }}>
-                    Select 4 mini sandwiches & burger sliders. Special options add +₱45/pax upgrade.
+                    Select {grazingAllowances.sliders || 4} mini sandwiches & burger sliders. Special options add +₱45/pax upgrade.
                   </p>
                 </div>
               </div>
@@ -3288,10 +3746,355 @@ export default function PricingCalculator({
               </div>
             </div>
           </div>
+        ) : isPackedMeal ? (
+          <div className="card-section" id="section-packed-meal">
+            <div className="section-header">
+              <div className="section-title">
+                <div className="step-number">3</div>
+                <span>Customize Packed Meal / Bento Box Menu</span>
+              </div>
+              <span style={{ fontSize: "0.78rem", color: "#c2410c", fontWeight: 700, background: "#ffedd5", padding: "3px 10px", borderRadius: "12px", border: "1px solid #fed7aa" }}>
+                {currentPkg.name} • ₱{currentPkg.pricePerPax}/pax (Min 50 Pax)
+              </span>
+            </div>
+
+            {/* Inclusions Banner */}
+            <div style={{
+              background: "linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)",
+              border: "1.5px solid #fed7aa",
+              borderRadius: "12px",
+              padding: "1rem 1.25rem",
+              marginBottom: "1.5rem"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem", marginBottom: "0.75rem" }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "#9a3412" }}>
+                    🍱 {currentPkg.name} — Course Allowances
+                  </h4>
+                  <p style={{ margin: "2px 0 0 0", fontSize: "0.76rem", color: "#c2410c" }}>
+                    Formula: <strong>{currentPkg.subtitle}</strong>
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                  <span style={{
+                    fontSize: "0.74rem",
+                    fontWeight: 700,
+                    padding: "3px 8px",
+                    borderRadius: "8px",
+                    background: selectedMainDishes.length === (currentPkg.mainDishesCount || 1) ? "#ea580c" : "#ffffff",
+                    color: selectedMainDishes.length === (currentPkg.mainDishesCount || 1) ? "#ffffff" : "#9a3412",
+                    border: "1px solid #ea580c"
+                  }}>
+                    {selectedMainDishes.length}/{currentPkg.mainDishesCount || 1} Mains
+                  </span>
+                  <span style={{
+                    fontSize: "0.74rem",
+                    fontWeight: 700,
+                    padding: "3px 8px",
+                    borderRadius: "8px",
+                    background: [sideDishes.regular, sideDishes.regular2].filter(Boolean).length === (currentPkg.sideDishes?.regular || 1) ? "#ea580c" : "#ffffff",
+                    color: [sideDishes.regular, sideDishes.regular2].filter(Boolean).length === (currentPkg.sideDishes?.regular || 1) ? "#ffffff" : "#9a3412",
+                    border: "1px solid #ea580c"
+                  }}>
+                    {[sideDishes.regular, sideDishes.regular2].filter(Boolean).length}/{currentPkg.sideDishes?.regular || 1} Sides
+                  </span>
+                  {currentPkg.hasDessertCup && (
+                    <span style={{
+                      fontSize: "0.74rem",
+                      fontWeight: 700,
+                      padding: "3px 8px",
+                      borderRadius: "8px",
+                      background: desserts.regular ? "#ea580c" : "#ffffff",
+                      color: desserts.regular ? "#ffffff" : "#9a3412",
+                      border: "1px solid #ea580c"
+                    }}>
+                      1 Dessert Cup
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Bento Box Features */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "0.5rem", fontSize: "0.78rem", color: "#7c2d12" }}>
+                <div>✔ Partitioned hygienic bento box with snap lid</div>
+                <div>✔ Sealed cutlery pack (spoon, fork, toothpick, napkin)</div>
+                <div>✔ Prepared hot & fresh on event delivery schedule</div>
+                <div>✔ Delivered in insulated thermal catering warmers</div>
+              </div>
+            </div>
+
+            {/* Quick Chef Pre-Sets (Option A, Option B, Option C) from flyer */}
+            {currentPkg.comboOptions && currentPkg.comboOptions.length > 0 && (
+              <div style={{ marginBottom: "1.75rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "#1e293b", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span>⭐ Palatable Chef Pre-Set Sets (1-Click Auto Select)</span>
+                    </h4>
+                    <p style={{ margin: "3px 0 0 0", fontSize: "0.76rem", color: "var(--text-muted)" }}>
+                      Select an official chef combo from the flyer, or customize your dishes below:
+                    </p>
+                  </div>
+                  {selectedPackedMealSet && selectedPackedMealSet !== "custom" && (
+                    <span style={{ fontSize: "0.74rem", color: "#ea580c", background: "#fff7ed", padding: "2px 10px", borderRadius: "10px", border: "1px solid #fed7aa", fontWeight: 700 }}>
+                      Selected: Set {selectedPackedMealSet.slice(-1)}
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "0.85rem" }}>
+                  {currentPkg.comboOptions.map(combo => {
+                    const isSelected = selectedPackedMealSet === combo.code;
+                    return (
+                      <div
+                        key={combo.code}
+                        onClick={() => {
+                          setSelectedPackedMealSet(combo.code);
+                          const mains = [combo.main, combo.main2].filter(Boolean);
+                          setSelectedMainDishes(mains);
+                          setSideDishes({
+                            regular: combo.side || "",
+                            regular2: combo.side2 || "",
+                            special: ""
+                          });
+                          if (combo.dessert) {
+                            setDesserts({ regular: combo.dessert, special: "" });
+                          }
+                          if (combo.rice) {
+                            setRiceOrSoup(combo.rice);
+                          }
+                          if (combo.drinks) {
+                            setBeverage(combo.drinks);
+                          }
+                        }}
+                        style={{
+                          padding: "1rem",
+                          borderRadius: "12px",
+                          border: isSelected ? "2px solid #ea580c" : "1px solid #e2e8f0",
+                          background: isSelected ? "#fff7ed" : "#ffffff",
+                          boxShadow: isSelected ? "0 4px 14px rgba(234, 88, 12, 0.15)" : "0 1px 3px rgba(0,0,0,0.05)",
+                          cursor: "pointer",
+                          transition: "all 0.2s ease"
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                          <span style={{ fontWeight: 800, fontSize: "0.92rem", color: isSelected ? "#c2410c" : "#0f172a" }}>
+                            {combo.name}
+                          </span>
+                          <span style={{
+                            fontSize: "0.68rem",
+                            fontWeight: 800,
+                            padding: "2px 8px",
+                            borderRadius: "10px",
+                            background: isSelected ? "#ea580c" : "#f1f5f9",
+                            color: isSelected ? "#ffffff" : "#64748b"
+                          }}>
+                            {isSelected ? "Selected ✓" : combo.code}
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "0.78rem", color: "#334155" }}>
+                          {combo.items.map((item, idx) => (
+                            <div key={idx} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                              <span style={{ color: isSelected ? "#ea580c" : "#94a3b8" }}>✔</span>
+                              <span style={{ fontWeight: idx < (currentPkg.mainDishesCount || 1) ? 700 : 500 }}>
+                                {item}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Custom Viand Selection */}
+            <div style={{ marginBottom: "1.5rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "#1e293b", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span>🍗 Choose {currentPkg.mainDishesCount || 1} Main Viand{(currentPkg.mainDishesCount || 1) > 1 ? "s" : ""}</span>
+                    <span style={{ fontSize: "0.75rem", color: "#c2410c", background: "#fff7ed", padding: "2px 8px", borderRadius: "10px", border: "1px solid #fed7aa" }}>
+                      {selectedMainDishes.length} of {currentPkg.mainDishesCount || 1} selected
+                    </span>
+                  </h4>
+                  <p style={{ margin: "3px 0 0 0", fontSize: "0.76rem", color: "var(--text-muted)" }}>
+                    Select from Beef, Pork, Chicken, or Fish options:
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: "0.55rem" }}>
+                {[
+                  ...(dishesMenu.chicken || []),
+                  ...(dishesMenu.pork || []),
+                  ...(dishesMenu.beef || []),
+                  ...(dishesMenu.fish || [])
+                ].filter(d => d.tier !== "special" && !d.premium).map(dish => {
+                  const isSel = selectedMainDishes.includes(dish.name);
+                  return (
+                    <div
+                      key={dish.id || dish.name}
+                      onClick={() => {
+                        setSelectedPackedMealSet("custom");
+                        if (isSel) {
+                          setSelectedMainDishes(prev => prev.filter(n => n !== dish.name));
+                        } else {
+                          const maxCount = currentPkg.mainDishesCount || 1;
+                          if (selectedMainDishes.length < maxCount) {
+                            setSelectedMainDishes(prev => [...prev, dish.name]);
+                          } else if (maxCount === 1) {
+                            setSelectedMainDishes([dish.name]);
+                          }
+                        }
+                      }}
+                      style={{
+                        padding: "0.65rem 0.8rem",
+                        borderRadius: "8px",
+                        border: isSel ? "2px solid #ea580c" : "1px solid var(--border-subtle)",
+                        background: isSel ? "#fff7ed" : "#ffffff",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        transition: "all 0.15s ease"
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: "0.82rem", fontWeight: isSel ? 800 : 600, color: isSel ? "#9a3412" : "var(--text-primary)" }}>
+                          {dish.name}
+                        </div>
+                        <div style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>
+                          {dish.description?.slice(0, 48)}...
+                        </div>
+                      </div>
+                      {isSel && <Check size={16} color="#ea580c" />}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Custom Side Dishes */}
+            <div style={{ marginBottom: "1.5rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "#1e293b", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span>🥗 Choose {currentPkg.sideDishes?.regular || 1} Side Dish{(currentPkg.sideDishes?.regular || 1) > 1 ? "es" : ""}</span>
+                  </h4>
+                  <p style={{ margin: "3px 0 0 0", fontSize: "0.76rem", color: "var(--text-muted)" }}>
+                    Tuna macaroni salad, buttered veggies, sotanghon, baked penne, lumpiang shanghai, etc.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: (currentPkg.sideDishes?.regular || 1) > 1 ? "1fr 1fr" : "1fr", gap: "1rem" }}>
+                <div>
+                  <label className="form-label" style={{ fontSize: "0.78rem", fontWeight: 700 }}>Side Dish 1 *</label>
+                  <select
+                    className="form-select"
+                    value={sideDishes.regular}
+                    onChange={(e) => {
+                      setSelectedPackedMealSet("custom");
+                      setSideDishes(prev => ({ ...prev, regular: e.target.value }));
+                    }}
+                  >
+                    <option value="">-- Choose Side Dish 1 --</option>
+                    {(dishesMenu.noodlesOrVeg || []).filter(d => d.tier !== "special" && !d.premium).map((d, i) => (
+                      <option key={`pm-sd1-${i}`} value={d.name}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+                {(currentPkg.sideDishes?.regular || 1) > 1 && (
+                  <div>
+                    <label className="form-label" style={{ fontSize: "0.78rem", fontWeight: 700 }}>Side Dish 2 *</label>
+                    <select
+                      className="form-select"
+                      value={sideDishes.regular2 || ""}
+                      onChange={(e) => {
+                        setSelectedPackedMealSet("custom");
+                        setSideDishes(prev => ({ ...prev, regular2: e.target.value }));
+                      }}
+                    >
+                      <option value="">-- Choose Side Dish 2 --</option>
+                      {(dishesMenu.noodlesOrVeg || []).filter(d => d.tier !== "special" && !d.premium).map((d, i) => (
+                        <option key={`pm-sd2-${i}`} value={d.name}>{d.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Chilled Dessert Cup (If Package has Dessert Cup) */}
+            {currentPkg.hasDessertCup && (
+              <div style={{ marginBottom: "1.5rem" }}>
+                <label className="form-label" style={{ fontSize: "0.78rem", fontWeight: 700, color: "#1e293b" }}>
+                  🍮 Chilled Dessert Cup (Included) *
+                </label>
+                <select
+                  className="form-select"
+                  value={desserts.regular}
+                  onChange={(e) => {
+                    setSelectedPackedMealSet("custom");
+                    setDesserts(prev => ({ ...prev, regular: e.target.value }));
+                  }}
+                >
+                  <option value="Creamy Fruit Salad">Creamy Fruit Salad</option>
+                  <option value="Mango Tapioca">Mango Tapioca</option>
+                  <option value="Strawberry Short Cake">Strawberry Short Cake</option>
+                  <option value="Coffee Jelly">Coffee Jelly</option>
+                  <option value="Buko Pandan">Buko Pandan</option>
+                  <option value="Fruit Salad">Fruit Salad</option>
+                </select>
+              </div>
+            )}
+
+            {/* Rice & Beverage Options */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              <div>
+                <label className="form-label" style={{ fontSize: "0.78rem", fontWeight: 700 }}>Rice Selection *</label>
+                <select
+                  className="form-select"
+                  value={riceOrSoup}
+                  onChange={(e) => {
+                    setSelectedPackedMealSet("custom");
+                    setRiceOrSoup(e.target.value);
+                  }}
+                >
+                  {(currentPkg.riceOptions || ["Plain Rice", "Garlic Rice", "Java Rice"]).map((r, i) => (
+                    <option key={`pm-rice-${i}`} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="form-label" style={{ fontSize: "0.78rem", fontWeight: 700 }}>Beverage Selection *</label>
+                <select
+                  className="form-select"
+                  value={beverage}
+                  onChange={(e) => {
+                    setSelectedPackedMealSet("custom");
+                    setBeverage(e.target.value);
+                  }}
+                >
+                  {(currentPkg.drinkOptions || ["Soda (Coke / Sprite / Royal)"]).map((dr, i) => (
+                    <option key={`pm-dr-${i}`} value={dr}>{dr}</option>
+                  ))}
+                  <option value="Soda (Coke)">Soda (Coke)</option>
+                  <option value="Soda (Sprite)">Soda (Sprite)</option>
+                  <option value="Soda (Royal)">Soda (Royal)</option>
+                  {currentPkg.hasBottledWater && (
+                    <option value="Soda or C2 Green Tea + Bottled Water">Soda or C2 Green Tea + Bottled Water</option>
+                  )}
+                </select>
+              </div>
+            </div>
+          </div>
         ) : (
           <>
             {/* Package Bargain & Custom Swap Deals Card */}
-            {!isFoodTray && (
+            {!isFoodTray && !isPromo && (
               <div className="card-section" id="section-swap-deals" style={{
                 background: swapDeal !== "none" ? "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)" : "#ffffff",
                 border: swapDeal !== "none" ? "2px solid #f59e0b" : "1px solid var(--border-subtle)",
@@ -4152,6 +4955,55 @@ export default function PricingCalculator({
                     Restore Rice & Drinks (Switch to Standard Inclusions)
                   </button>
                 </div>
+              ) : isPromo ? (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "1rem" }}>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontWeight: 800, color: "#991b1b" }}>🍲 Choice of Hot Soup (Included in Promo) *</label>
+                    <select
+                      className="form-select"
+                      value={selectedSoup}
+                      onChange={(e) => setSelectedSoup(e.target.value)}
+                    >
+                      {SOUP_OPTIONS.map((s, idx) => (
+                        <option key={idx} value={s}>{s}</option>
+                      ))}
+                    </select>
+                    <span style={{ fontSize: "0.7rem", color: "#991b1b", marginTop: "2px", display: "block" }}>
+                      Served hot in warm buffet soup tureens with bowls
+                    </span>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontWeight: 800 }}>🍚 Steamed Jasmine Rice (Included in Promo) *</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      readOnly
+                      value="Steamed Pandan Jasmine Rice (Complimentary)"
+                      style={{ background: "#f8fafc", color: "#334155", fontWeight: 600 }}
+                    />
+                    <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: "2px", display: "block" }}>
+                      Fragrant steamed jasmine rice for all 50+ guests
+                    </span>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontWeight: 800 }}>🍹 Choice of: Soda or Juice *</label>
+                    <select
+                      className="form-select"
+                      value={beverage}
+                      onChange={(e) => setBeverage(e.target.value)}
+                    >
+                      <option value="Soda (Coke / Sprite / Royal)">Soda (Coke / Sprite / Royal)</option>
+                      <option value="Bottomless Signature Red Iced Tea">Bottomless Signature Red Iced Tea</option>
+                      <option value="Fresh Calamansi Citrus Cooler">Fresh Calamansi Citrus Cooler</option>
+                      <option value="Blue Lemonade Refresher">Blue Lemonade Refresher</option>
+                    </select>
+                    <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: "2px", display: "block" }}>
+                      Chilled refreshments throughout 4 hours catering service
+                    </span>
+                  </div>
+                </div>
               ) : (
                 <div className="form-grid-2">
                   <div className="form-group">
@@ -4449,6 +5301,79 @@ export default function PricingCalculator({
                   <div>🍔 <strong>Sliders ({selectedSliders.length}/4):</strong> {selectedSliders.join(" • ")}</div>
                   {currentPkg.name?.includes("Premium") && (
                     <div style={{ color: "#5b21b6", fontWeight: 600 }}>🍮 <strong>Dessert Shots Included</strong></div>
+                  )}
+                </div>
+              </div>
+            </>
+          ) : isPackedMeal ? (
+            <>
+              <div className="line-item-row">
+                <span style={{ fontWeight: 700 }}>{currentPkg.name}</span>
+                <span className="val" style={{ fontWeight: 800 }}>₱{foodTotal.toLocaleString()}</span>
+              </div>
+              <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "-4px" }}>
+                ₱{currentPkg.pricePerPax} × {pax} bento meals (Min 50 Pax • {currentPkg.subtitle})
+              </div>
+
+              {/* Packed Meal Selected Items Summary */}
+              <div style={{ background: "var(--surface)", border: "1px solid var(--border-subtle)", borderRadius: "8px", padding: "8px 10px", marginTop: "0.4rem" }}>
+                <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-primary)", marginBottom: "4px", display: "flex", justifyContent: "space-between" }}>
+                  <span>🍱 Bento Inclusions:</span>
+                  {selectedPackedMealSet && selectedPackedMealSet !== "custom" && (
+                    <span style={{ fontSize: "0.7rem", color: "#c2410c", background: "#ffedd5", padding: "1px 6px", borderRadius: "6px" }}>
+                      {selectedPackedMealSet} Set
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "3px", fontSize: "0.72rem", color: "var(--text-secondary)" }}>
+                  <div>🍗 <strong>Main Viand(s):</strong> {selectedMainDishes.join(" • ") || "None"}</div>
+                  <div>🥗 <strong>Side(s):</strong> {[sideDishes.regular, sideDishes.regular2].filter(Boolean).join(" • ") || "None"}</div>
+                  {currentPkg.hasDessertCup && (
+                    <div>🍮 <strong>Dessert Cup:</strong> {desserts.regular || "Creamy Fruit Salad"}</div>
+                  )}
+                  <div>🍚 <strong>Rice:</strong> {riceOrSoup}</div>
+                  <div>🥤 <strong>Drink:</strong> {beverage}</div>
+                  {currentPkg.hasBottledWater && (
+                    <div>💧 <strong>Water:</strong> Bottled Water Included</div>
+                  )}
+                </div>
+              </div>
+            </>
+          ) : isPromo ? (
+            <>
+              <div className="line-item-row">
+                <span style={{ fontWeight: 700, color: "#991b1b" }}>🎄 {currentPkg.name}</span>
+                <span className="val" style={{ fontWeight: 800 }}>₱{foodTotal.toLocaleString()}</span>
+              </div>
+              <div style={{ fontSize: "0.72rem", color: "#991b1b", marginTop: "-4px" }}>
+                {pax <= (currentPkg.minPax || 50)
+                  ? `₱${(currentPkg.price || 35000).toLocaleString()} for ${currentPkg.minPax || 50} PAX (${currentPkg.name})`
+                  : `₱${(currentPkg.price || 35000).toLocaleString()} (Base ${currentPkg.minPax || 50} PAX) + ₱${currentPkg.pricePerPax || 700} × ${pax - (currentPkg.minPax || 50)} Extra Guests`}
+              </div>
+
+              {/* Bermonths Promo Selected Items Summary */}
+              <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "8px", padding: "8px 10px", marginTop: "0.4rem" }}>
+                <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#991b1b", marginBottom: "4px", display: "flex", justifyContent: "space-between" }}>
+                  <span>🎄 Bermonths Promo Summary:</span>
+                  <span style={{ fontSize: "0.7rem", color: "#b91c1c", fontWeight: 700 }}>
+                    {promoStartDate} - {promoEndDate}
+                  </span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "3px", fontSize: "0.72rem", color: "#7f1d1d" }}>
+                  <div>🍗 <strong>Main Viands ({selectedMainDishes.length}/{courseAllowances.mainDishesCount}):</strong> {selectedMainDishes.join(" • ") || "None"}</div>
+                  <div>🥗 <strong>Regular Side:</strong> {selectedSides.join(" • ") || "None"}</div>
+                  <div>🍮 <strong>Regular Dessert:</strong> {selectedDessertsList[0] || desserts.regular || "None"}</div>
+                  <div>🍲 <strong>Hot Soup:</strong> {selectedSoup}</div>
+                  <div>🍚 <strong>Rice:</strong> Steamed Pandan Jasmine Rice</div>
+                  <div>🥤 <strong>Drink:</strong> {beverage}</div>
+                  <div>🧀 <strong>Mini Grazing Table:</strong> 1 Big Charcuterie Platter, 1 Big Fruit Platter, DIY Nachos w/ Cheese Fountain, Canapés, Mini Cups</div>
+                  {currentPkg.hasLechon && (
+                    <div style={{ color: "#b45309", fontWeight: 700 }}>🐷 <strong>Lechon:</strong> 1 Whole Lechon (50kg Live weight) Included!</div>
+                  )}
+                  {clientInfo.notes && (
+                    <div style={{ color: "#0f172a", fontWeight: 700, borderTop: "1px dashed #fca5a5", paddingTop: "3px", marginTop: "3px" }}>
+                      📝 <strong>Note / Remarks:</strong> {clientInfo.notes}
+                    </div>
                   )}
                 </div>
               </div>

@@ -131,3 +131,37 @@ export function getFullyBookedDatesList(bookings = [], maxLimit = MAX_CONFIRMED_
 
   return Object.keys(dateCounts).filter(date => dateCounts[date] >= maxLimit);
 }
+
+/**
+ * Safely parses a "YYYY-MM-DD" date string (or Date object, or ISO string)
+ * into a local Date object without UTC timezone offset shift.
+ */
+export function parseLocalDate(dateStr) {
+  if (!dateStr) return null;
+  if (dateStr instanceof Date) return dateStr;
+  try {
+    const raw = String(dateStr).includes("T") ? String(dateStr).split("T")[0] : String(dateStr).trim();
+    const parts = raw.split("-");
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+        return new Date(year, month, day);
+      }
+    }
+    return new Date(dateStr);
+  } catch {
+    return new Date(dateStr);
+  }
+}
+
+/**
+ * Format date safely avoiding UTC 1-day subtraction
+ */
+export function formatDisplayDate(dateStr, options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }, locale = "en-PH") {
+  if (!dateStr) return "TBA";
+  const d = parseLocalDate(dateStr);
+  if (!d || isNaN(d.getTime())) return String(dateStr);
+  return d.toLocaleDateString(locale, options);
+}

@@ -21,7 +21,7 @@ import {
   generateDefaultIngressInventory, 
   OFFICIAL_INGRESS_DISCLAIMER_NOTE 
 } from "../data/inventoryEquipmentData";
-import { formatTime12Hour } from "../utils/bookingUtils";
+import { formatTime12Hour, formatDisplayDate } from "../utils/bookingUtils";
 
 export default function IngressEgressManager({
   bookings = [],
@@ -207,7 +207,7 @@ export default function IngressEgressManager({
   });
 
   const formattedDate = currentBooking?.eventDate 
-    ? new Date(currentBooking.eventDate).toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" })
+    ? formatDisplayDate(currentBooking.eventDate, { year: "numeric", month: "long", day: "numeric" })
     : "TBA";
 
   return (

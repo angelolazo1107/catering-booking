@@ -28,6 +28,7 @@ import {
   FileSpreadsheet
 } from "lucide-react";
 import { calculateKitchenGroceryBOM } from "../data/recipeFormulas";
+import { formatDisplayDate } from "../utils/bookingUtils";
 
 const EXPENSES_STORAGE_KEY = "caterflow_custom_expenses";
 
@@ -1162,7 +1163,7 @@ export default function FinancialSalesDashboard({
                         </div>
                       </td>
                       <td style={{ whiteSpace: "nowrap" }}>
-                        {b.eventDate ? new Date(b.eventDate).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" }) : "—"}
+                        {b.eventDate ? formatDisplayDate(b.eventDate, { month: "short", day: "numeric", year: "numeric" }) : "—"}
                       </td>
                       <td style={{ fontWeight: 700 }}>
                         {pax} pax

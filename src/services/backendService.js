@@ -3,6 +3,8 @@ import {
   FOOD_TRAY_PACKAGES,
   PICA_PICA_PACKAGES,
   GRAZING_TABLE_PACKAGES,
+  PACKED_MEAL_PACKAGES,
+  BERMONTHS_PROMO_PACKAGES,
   DISH_MENU_OPTIONS as DEFAULT_DISHES, 
   CATERING_ADDONS as DEFAULT_ADDONS 
 } from "../data/cateringData";
@@ -87,6 +89,22 @@ function ensureFoodTrayPackages(pkgs) {
   if (!result.some(p => p.serviceType === "grazing_table" || p.id?.startsWith("grazing_"))) {
     result.push(...GRAZING_TABLE_PACKAGES);
   }
+  if (!result.some(p => p.serviceType === "packed_meal" || p.id?.startsWith("pm_"))) {
+    result.push(...PACKED_MEAL_PACKAGES);
+  }
+  // Ensure both official Bermonths Promos exist (50 PAX @ ₱35,000 & 100 PAX @ ₱75,000)
+  const hasPromo100 = result.some(p => p.id === "promo_bermonths_100");
+  const hasOutdatedPromo = result.some(p => (p.id === "promo_bermonths" || p.serviceType === "promo") && p.price === 20000);
+  if (!result.some(p => p.serviceType === "promo" || p.isPromo) || !hasPromo100 || hasOutdatedPromo) {
+    result = result.filter(p => p.id !== "promo_bermonths" && p.id !== "promo_bermonths_100" && p.id !== "promo_bermonths_50" && p.price !== 20000);
+    result.push(...BERMONTHS_PROMO_PACKAGES);
+  }
+  // Ensure every default package exists in result
+  for (const defPkg of DEFAULT_PACKAGES) {
+    if (!result.some(p => p.id === defPkg.id)) {
+      result.push(defPkg);
+    }
+  }
   return result;
 }
 
@@ -158,14 +176,21 @@ export async function savePackage(pkg) {
   const isFoodTray = pkg.serviceType === "food_tray" || pkg.id?.startsWith("food_tray");
   const isPicaPica = pkg.serviceType === "pica_pica" || pkg.id?.startsWith("pica_pica");
   const isGrazing = pkg.serviceType === "grazing_table" || pkg.id?.startsWith("grazing_");
-  const serviceType = pkg.serviceType || (isFoodTray ? "food_tray" : isPicaPica ? "pica_pica" : isGrazing ? "grazing_table" : "buffet");
-  const prefix = isFoodTray ? "food_tray_" : isPicaPica ? "pica_pica_" : isGrazing ? "grazing_" : "pkg_";
-  const defaultMinPax = isFoodTray ? 10 : (isPicaPica ? 50 : (isGrazing ? 100 : 50));
+  const isPackedMeal = pkg.serviceType === "packed_meal" || pkg.id?.startsWith("pm_") || pkg.id?.startsWith("packed_meal");
+  const isPromo = pkg.serviceType === "promo" || pkg.id?.startsWith("promo_") || pkg.isPromo;
+  const serviceType = pkg.serviceType || (isFoodTray ? "food_tray" : isPicaPica ? "pica_pica" : isGrazing ? "grazing_table" : isPackedMeal ? "packed_meal" : isPromo ? "promo" : "buffet");
+  const prefix = isFoodTray ? "food_tray_" : isPicaPica ? "pica_pica_" : isGrazing ? "grazing_" : isPackedMeal ? "pm_" : isPromo ? "promo_" : "pkg_";
+  const defaultMinPax = isFoodTray ? 10 : (isPicaPica ? 50 : (isGrazing ? 100 : (isPackedMeal ? 50 : (isPromo ? 50 : 50))));
 
   const pkgToSave = {
     ...pkg,
     id: pkg.id || prefix + Date.now().toString(36),
     serviceType,
+    isPromo: Boolean(isPromo || pkg.isPromo),
+    promoStartDate: pkg.promoStartDate || (isPromo ? "2026-09-30" : undefined),
+    promoEndDate: pkg.promoEndDate || (isPromo ? "2026-12-31" : undefined),
+    promoRunsText: pkg.promoRunsText || (isPromo ? "SEPTEMBER 30 - DECEMBER 31" : undefined),
+    promoIsActive: pkg.promoIsActive !== undefined ? Boolean(pkg.promoIsActive) : true,
     pricePerPax: Number(pkg.pricePerPax) || 0,
     price: pkg.price !== undefined ? Number(pkg.price) : undefined,
     minPax: Number(pkg.minPax) || defaultMinPax,

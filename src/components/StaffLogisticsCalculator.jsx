@@ -18,6 +18,7 @@ export default function StaffLogisticsCalculator({ bookings = [] }) {
   const effectiveServiceType = useMemo(() => {
     if (activeBooking) {
       if (activeBooking.serviceType) return activeBooking.serviceType;
+      if (activeBooking.isPackedMeal || activeBooking.packageId?.startsWith("pm_")) return "packed_meal";
       if (activeBooking.isFoodTray || activeBooking.packageId?.startsWith("food_tray")) return "food_tray";
       if (activeBooking.isPicaPica || activeBooking.packageId?.startsWith("pica_pica")) return "pica_pica";
       if (activeBooking.isGrazingTable || activeBooking.packageId?.startsWith("grazing_")) return "grazing_table";
@@ -44,6 +45,25 @@ export default function StaffLogisticsCalculator({ bookings = [] }) {
 
   // Compute Headcount based on Service Type
   const roles = useMemo(() => {
+    if (effectiveServiceType === "packed_meal") {
+      const driverCount = 1;
+      const attendantCount = Math.max(1, Math.ceil(currentPax / 60));
+      return [
+        {
+          title: "Logistics Dispatch Driver",
+          rule: "Vehicle transit, thermal bento carrier box transport & drop-off handover",
+          count: driverCount,
+          rate: 900
+        },
+        {
+          title: "Packed Meal Delivery & Handover Attendant",
+          rule: "Meal box count verification, thermal unpacking, cutlery kit distribution & client sign-off",
+          count: attendantCount,
+          rate: 750
+        }
+      ];
+    }
+
     if (effectiveServiceType === "food_tray") {
       const driverCount = 1;
       const attendantCount = Math.max(1, Math.ceil(currentPax / 50));
@@ -181,6 +201,7 @@ export default function StaffLogisticsCalculator({ bookings = [] }) {
 
   const getServiceLabel = (type) => {
     switch (type) {
+      case "packed_meal": return "🍱 Packed Meals / Bento";
       case "food_tray": return "🍱 Food Tray Drop-Off";
       case "pica_pica": return "🍢 Pica Pica Cocktail Station";
       case "grazing_table": return "🧀 Grazing Table Charcuterie";
@@ -221,7 +242,7 @@ export default function StaffLogisticsCalculator({ bookings = [] }) {
               >
                 {bookings.map(b => (
                   <option key={b.id} value={b.id}>
-                    {b.id} — {b.clientName} ({b.pax} pax • {b.serviceType === "food_tray" ? "Tray" : b.serviceType === "pica_pica" ? "Pica" : b.serviceType === "grazing_table" ? "Grazing" : "Buffet"})
+                    {b.id} — {b.clientName} ({b.pax} pax • {b.serviceType === "packed_meal" ? "Packed Meal" : b.serviceType === "food_tray" ? "Tray" : b.serviceType === "pica_pica" ? "Pica" : b.serviceType === "grazing_table" ? "Grazing" : "Buffet"})
                   </option>
                 ))}
                 <option value="manual">Custom Staff Simulation</option>
@@ -252,6 +273,7 @@ export default function StaffLogisticsCalculator({ bookings = [] }) {
                   >
                     <option value="buffet">Buffet (1:25 Waiters)</option>
                     <option value="plated">Plated (1:18 Waiters)</option>
+                    <option value="packed_meal">Packed Meal / Bento (Min 50 PAX)</option>
                     <option value="food_tray">Food Tray Delivery</option>
                     <option value="pica_pica">Pica Pica Cocktail</option>
                     <option value="grazing_table">Grazing Table Styling</option>

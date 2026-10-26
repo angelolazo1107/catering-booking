@@ -101,11 +101,16 @@ export default function AdminPackageManager({
       const isFoodTray = pkg.serviceType === "food_tray" || pkg.id?.startsWith("food_tray");
       const isPica = pkg.serviceType === "pica_pica" || pkg.id?.startsWith("pica_pica");
       const isGrazing = pkg.serviceType === "grazing_table" || pkg.id?.startsWith("grazing_");
+      const isPacked = pkg.serviceType === "packed_meal" || pkg.id?.startsWith("pm_") || pkg.id?.startsWith("packed_meal");
+      const isPromo = pkg.serviceType === "promo" || pkg.isPromo || pkg.id?.startsWith("promo_");
       setEditingPkg({
         ...pkg,
-        serviceType: pkg.serviceType || (isFoodTray ? "food_tray" : isPica ? "pica_pica" : isGrazing ? "grazing_table" : "buffet"),
+        serviceType: pkg.serviceType || (isPromo ? "promo" : isFoodTray ? "food_tray" : isPica ? "pica_pica" : isGrazing ? "grazing_table" : isPacked ? "packed_meal" : "buffet"),
         price: pkg.price !== undefined ? pkg.price : "",
         paxRange: pkg.paxRange || "",
+        promoStartDate: pkg.promoStartDate || "2026-09-30",
+        promoEndDate: pkg.promoEndDate || "2026-12-31",
+        promoIsActive: pkg.promoIsActive !== undefined ? pkg.promoIsActive : true,
         mainDishesCount: allowances.mainDishesCount,
         regSidesCount: allowances.regSidesCount,
         specSidesCount: allowances.specSidesCount,
@@ -124,23 +129,28 @@ export default function AdminPackageManager({
       const isTrayDefault = packageCategoryFilter === "food_tray";
       const isPicaDefault = packageCategoryFilter === "pica_pica";
       const isGrazingDefault = packageCategoryFilter === "grazing_table";
-      const defaultType = isTrayDefault ? "food_tray" : isPicaDefault ? "pica_pica" : isGrazingDefault ? "grazing_table" : "buffet";
+      const isPackedDefault = packageCategoryFilter === "packed_meal";
+      const isPromoDefault = packageCategoryFilter === "promo";
+      const defaultType = isPromoDefault ? "promo" : isTrayDefault ? "food_tray" : isPicaDefault ? "pica_pica" : isGrazingDefault ? "grazing_table" : isPackedDefault ? "packed_meal" : "buffet";
       setEditingPkg({
         id: "",
         serviceType: defaultType,
         name: "",
         subtitle: "",
-        badge: isTrayDefault ? "Party Food Tray" : isPicaDefault ? "Pica Pica Station" : isGrazingDefault ? "Grazing Table" : "Custom Package",
-        popular: false,
-        price: isTrayDefault ? 7500 : (isGrazingDefault ? 85000 : ""),
-        pricePerPax: isTrayDefault ? 500 : isPicaDefault ? 350 : (isGrazingDefault ? 567 : 650),
-        minPax: isTrayDefault ? 10 : isPicaDefault ? 50 : (isGrazingDefault ? 100 : 50),
+        badge: isPromoDefault ? "🎄 Bermonths Promo" : isTrayDefault ? "Party Food Tray" : isPicaDefault ? "Pica Pica Station" : isGrazingDefault ? "Grazing Table" : isPackedDefault ? "Packed Meal Bento" : "Custom Package",
+        popular: isPromoDefault,
+        price: isPromoDefault ? 20000 : (isTrayDefault ? 7500 : (isGrazingDefault ? 85000 : "")),
+        pricePerPax: isPromoDefault ? 400 : (isTrayDefault ? 500 : isPicaDefault ? 350 : (isGrazingDefault ? 567 : isPackedDefault ? 199 : 650)),
+        minPax: isTrayDefault ? 10 : (isGrazingDefault ? 100 : 50),
         maxPax: isTrayDefault ? 15 : isGrazingDefault ? 150 : undefined,
-        paxRange: isTrayDefault ? "10-15 PAX" : isPicaDefault ? "50 PAX Min" : isGrazingDefault ? "100-150 PAX" : "",
-        mainDishesCount: (isTrayDefault || isPicaDefault || isGrazingDefault) ? (isTrayDefault ? 3 : 0) : 5,
-        regSidesCount: isTrayDefault ? 2 : 1,
+        paxRange: isPromoDefault ? "Good for 50 PAX" : (isTrayDefault ? "10-15 PAX" : isPicaDefault ? "50 PAX Min" : isGrazingDefault ? "100-150 PAX" : (isPackedDefault ? "Min 50 PAX" : "")),
+        promoStartDate: "2026-09-30",
+        promoEndDate: "2026-12-31",
+        promoIsActive: true,
+        mainDishesCount: isPromoDefault ? 2 : ((isTrayDefault || isPicaDefault || isGrazingDefault || isPackedDefault) ? (isTrayDefault ? 3 : isPackedDefault ? 1 : 0) : 5),
+        regSidesCount: isPromoDefault ? 1 : (isTrayDefault ? 2 : 1),
         specSidesCount: 0,
-        regDessertsCount: isTrayDefault ? 0 : 1,
+        regDessertsCount: isPromoDefault ? 1 : (isTrayDefault ? 0 : 1),
         specDessertsCount: 0,
         slidersCount: isGrazingDefault ? 4 : 2,
         canapesCount: 5,
@@ -150,7 +160,9 @@ export default function AdminPackageManager({
         hasDiyStation: false,
         hasDessertShots: false,
         courses: { beef: 1, pork: 1, chicken: 1, noodlesOrVeg: 1, rice: 1, dessert: 1, drinks: 1 },
-        inclusionsText: isPicaDefault
+        inclusionsText: isPromoDefault
+          ? "2 Regular Main Dishes (Beef, Pork, Chicken, Seafood)\n1 Regular Side (Pasta, Noodles, or Veg)\n1 Regular Dessert (Filipino Dessert)\nHot Soup (Cream of Corn, Mushroom, Pumpkin, Sotanghon Broth)\nSteamed Pandan Jasmine Rice\nSoda or Fruit Juice\nRustic Buffet Table Setup & Styling\nTables and chairs for guests with table skirting, chair cover, centerpiece, fine dining setup\nFree transportation: Iloilo City, Cabatuan, Sta. Barbara, Pavia, San Miguel, Janiuay, Maasin\nFriendly uniformed servers/waitstaff (4hrs full catering service)\nComplimentary service water"
+          : isPicaDefault
           ? "2 Sliders\n5 Canapés\n2 Finger Food\n2 Mini Dessert Cups\nChoice of: Juice or Coffee\nLive cocktail food station setup\nMinimum booking: 50 PAX"
           : isGrazingDefault
           ? "5 Kilos Italian Cured Meats\n5 Types of Imported Cheeses\n5 Seasonal Fruit Platters\n5 Canapés, 4 Sliders\nMix Nuts, Crackers, Bretzels\nGrazing Cups & Nachos Station\nArtisan Breadbasket with Jams"
@@ -173,6 +185,8 @@ export default function AdminPackageManager({
     const isFoodTray = editingPkg.serviceType === "food_tray" || editingPkg.id?.startsWith("food_tray");
     const isPicaPica = editingPkg.serviceType === "pica_pica" || editingPkg.id?.startsWith("pica_pica");
     const isGrazing = editingPkg.serviceType === "grazing_table" || editingPkg.id?.startsWith("grazing_");
+    const isPacked = editingPkg.serviceType === "packed_meal" || editingPkg.id?.startsWith("pm_") || editingPkg.id?.startsWith("packed_meal");
+    const isPromo = editingPkg.serviceType === "promo" || editingPkg.isPromo || editingPkg.id?.startsWith("promo_");
     const parsedFixedPrice = editingPkg.price !== "" && editingPkg.price !== undefined ? Number(editingPkg.price) : undefined;
     const parsedPricePerPax = Number(editingPkg.pricePerPax) || (parsedFixedPrice && editingPkg.minPax ? Math.round(parsedFixedPrice / editingPkg.minPax) : 0);
 
@@ -194,15 +208,19 @@ export default function AdminPackageManager({
 
     await onSavePackage({
       ...editingPkg,
-      serviceType: editingPkg.serviceType || (isFoodTray ? "food_tray" : isPicaPica ? "pica_pica" : isGrazing ? "grazing_table" : "buffet"),
+      serviceType: editingPkg.serviceType || (isPromo ? "promo" : isFoodTray ? "food_tray" : isPicaPica ? "pica_pica" : isGrazing ? "grazing_table" : isPacked ? "packed_meal" : "buffet"),
+      isPromo: isPromo,
+      promoStartDate: editingPkg.promoStartDate || "2026-09-30",
+      promoEndDate: editingPkg.promoEndDate || "2026-12-31",
+      promoIsActive: editingPkg.promoIsActive !== undefined ? editingPkg.promoIsActive : true,
       price: parsedFixedPrice,
       paxRange: editingPkg.paxRange || undefined,
       inclusions,
       picaAllowances,
       grazingAllowances,
-      mainDishesCount: (isPicaPica || isGrazing) ? 0 : (Number(editingPkg.mainDishesCount) || (isFoodTray ? 3 : 5)),
+      mainDishesCount: (isPicaPica || isGrazing) ? 0 : (Number(editingPkg.mainDishesCount) || (isPromo ? 2 : (isPacked ? 1 : (isFoodTray ? 3 : 5)))),
       sideDishes: {
-        regular: (isPicaPica || isGrazing) ? 0 : (Number(editingPkg.regSidesCount) ?? (isFoodTray ? 2 : 1)),
+        regular: (isPicaPica || isGrazing) ? 0 : (Number(editingPkg.regSidesCount) ?? (isPromo ? 1 : (isFoodTray ? 2 : 1))),
         special: (isPicaPica || isGrazing) ? 0 : (Number(editingPkg.specSidesCount) ?? 0)
       },
       desserts: {
@@ -637,6 +655,38 @@ export default function AdminPackageManager({
             >
               🧀 Grazing Table ({packages.filter(p => p.serviceType === "grazing_table" || p.id?.startsWith("grazing_")).length})
             </button>
+            <button
+              type="button"
+              onClick={() => setPackageCategoryFilter("packed_meal")}
+              style={{
+                padding: "0.4rem 0.85rem",
+                borderRadius: "20px",
+                border: packageCategoryFilter === "packed_meal" ? "1.5px solid var(--gold-600)" : "1px solid var(--border-subtle)",
+                background: packageCategoryFilter === "packed_meal" ? "var(--gold-50)" : "#ffffff",
+                color: packageCategoryFilter === "packed_meal" ? "var(--gold-700)" : "var(--text-secondary)",
+                fontWeight: packageCategoryFilter === "packed_meal" ? 700 : 500,
+                fontSize: "0.82rem",
+                cursor: "pointer"
+              }}
+            >
+              🍱 Packed Meals ({packages.filter(p => p.serviceType === "packed_meal" || p.id?.startsWith("pm_") || p.id?.startsWith("packed_meal")).length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setPackageCategoryFilter("promo")}
+              style={{
+                padding: "0.4rem 0.85rem",
+                borderRadius: "20px",
+                border: packageCategoryFilter === "promo" ? "1.5px solid #dc2626" : "1px solid var(--border-subtle)",
+                background: packageCategoryFilter === "promo" ? "#fef2f2" : "#ffffff",
+                color: packageCategoryFilter === "promo" ? "#b91c1c" : "var(--text-secondary)",
+                fontWeight: packageCategoryFilter === "promo" ? 700 : 500,
+                fontSize: "0.82rem",
+                cursor: "pointer"
+              }}
+            >
+              🎄 Promos ({packages.filter(p => p.serviceType === "promo" || p.isPromo || p.id?.startsWith("promo_")).length})
+            </button>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(350px, 1fr))", gap: "1.25rem" }}>
@@ -645,25 +695,31 @@ export default function AdminPackageManager({
                 const isTray = pkg.serviceType === "food_tray" || pkg.id?.startsWith("food_tray");
                 const isPica = pkg.serviceType === "pica_pica" || pkg.id?.startsWith("pica_pica");
                 const isGrazing = pkg.serviceType === "grazing_table" || pkg.id?.startsWith("grazing_");
-                if (packageCategoryFilter === "buffet") return !isTray && !isPica && !isGrazing;
+                const isPacked = pkg.serviceType === "packed_meal" || pkg.id?.startsWith("pm_") || pkg.id?.startsWith("packed_meal");
+                const isPromo = pkg.serviceType === "promo" || pkg.isPromo || pkg.id?.startsWith("promo_");
+                if (packageCategoryFilter === "buffet") return !isTray && !isPica && !isGrazing && !isPacked && !isPromo;
                 if (packageCategoryFilter === "food_tray") return isTray;
                 if (packageCategoryFilter === "pica_pica") return isPica;
                 if (packageCategoryFilter === "grazing_table") return isGrazing;
+                if (packageCategoryFilter === "packed_meal") return isPacked;
+                if (packageCategoryFilter === "promo") return isPromo;
                 return true;
               })
               .map((pkg) => {
                 const isTray = pkg.serviceType === "food_tray" || pkg.id?.startsWith("food_tray");
                 const isPica = pkg.serviceType === "pica_pica" || pkg.id?.startsWith("pica_pica");
                 const isGrazing = pkg.serviceType === "grazing_table" || pkg.id?.startsWith("grazing_");
-                const isPremiere = !isTray && !isPica && !isGrazing && (pkg.id === "royal_premiere" || (pkg.pricePerPax >= 850 && pkg.minPax >= 70));
+                const isPacked = pkg.serviceType === "packed_meal" || pkg.id?.startsWith("pm_") || pkg.id?.startsWith("packed_meal");
+                const isPromo = pkg.serviceType === "promo" || pkg.isPromo || pkg.id?.startsWith("promo_");
+                const isPremiere = !isTray && !isPica && !isGrazing && !isPacked && !isPromo && (pkg.id === "royal_premiere" || (pkg.pricePerPax >= 850 && pkg.minPax >= 70));
                 const startingCost = pkg.price 
                   ? pkg.price 
                   : (pkg.pricePerPax || 0) * (pkg.minPax || (isTray ? 10 : (isPica ? 50 : (isGrazing ? 100 : 50))));
                 const allowances = getPackageCourseAllowances(pkg);
 
-                const badgeBg = isTray ? "#fffbeb" : isPica ? "#f0fdf4" : isGrazing ? "#fef3c7" : undefined;
-                const badgeColor = isTray ? "#b45309" : isPica ? "#166534" : isGrazing ? "#92400e" : undefined;
-                const badgeBorder = isTray ? "#fde68a" : isPica ? "#bbf7d0" : isGrazing ? "#fcd34d" : undefined;
+                const badgeBg = isPromo ? "#fef2f2" : isTray ? "#fffbeb" : isPica ? "#f0fdf4" : isGrazing ? "#fef3c7" : isPacked ? "#fff7ed" : undefined;
+                const badgeColor = isPromo ? "#dc2626" : isTray ? "#b45309" : isPica ? "#166534" : isGrazing ? "#92400e" : isPacked ? "#c2410c" : undefined;
+                const badgeBorder = isPromo ? "#fca5a5" : isTray ? "#fde68a" : isPica ? "#bbf7d0" : isGrazing ? "#fcd34d" : undefined;
 
                 return (
                   <div 
@@ -672,13 +728,13 @@ export default function AdminPackageManager({
                     style={{ 
                       position: "relative",
                       marginBottom: 0, 
-                      border: isPremiere ? "2px solid var(--gold-400)" : isTray ? "1.5px solid #d97706" : isPica ? "1.5px solid #16a34a" : isGrazing ? "1.5px solid #d97706" : "1px solid var(--border-subtle)",
-                      boxShadow: isPremiere ? "var(--shadow-gold)" : (isTray || isPica || isGrazing) ? "0 4px 12px rgba(217, 119, 6, 0.08)" : "var(--shadow-sm)"
+                      border: isPromo ? "2px solid #ef4444" : isPremiere ? "2px solid var(--gold-400)" : isTray ? "1.5px solid #d97706" : isPica ? "1.5px solid #16a34a" : isGrazing ? "1.5px solid #d97706" : "1px solid var(--border-subtle)",
+                      boxShadow: isPromo ? "0 4px 14px rgba(239, 68, 68, 0.15)" : isPremiere ? "var(--shadow-gold)" : (isTray || isPica || isGrazing) ? "0 4px 12px rgba(217, 119, 6, 0.08)" : "var(--shadow-sm)"
                     }}
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
                       <span className="pkg-badge" style={{ position: "static", marginBottom: "0.25rem", background: badgeBg, color: badgeColor, borderColor: badgeBorder }}>
-                        {isTray ? (pkg.badge || "🍱 Food Tray") : isPica ? (pkg.badge || "🍢 Pica Pica") : isGrazing ? (pkg.badge || "🧀 Grazing Table") : (pkg.badge || "Standard Tier")}
+                        {isPromo ? (pkg.badge || "🎄 Bermonths Promo") : isTray ? (pkg.badge || "🍱 Food Tray") : isPica ? (pkg.badge || "🍢 Pica Pica") : isGrazing ? (pkg.badge || "🧀 Grazing Table") : (pkg.badge || "Standard Tier")}
                       </span>
                       <div style={{ display: "flex", gap: "0.35rem" }}>
                         <button 
@@ -1304,14 +1360,14 @@ export default function AdminPackageManager({
               {/* Service Type Selection */}
               <div style={{ marginBottom: "1.25rem" }}>
                 <label className="form-label">Service Type *</label>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "0.5rem" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(105px, 1fr))", gap: "0.5rem" }}>
                   <button
                     type="button"
                     onClick={() => {
                       setEditingPkg(prev => ({
                         ...prev,
                         serviceType: "buffet",
-                        badge: prev.badge?.includes("Tray") || prev.badge?.includes("Pica") || prev.badge?.includes("Grazing") ? "Standard Tier" : prev.badge,
+                        badge: prev.badge?.includes("Tray") || prev.badge?.includes("Pica") || prev.badge?.includes("Grazing") || prev.badge?.includes("PM") ? "Standard Tier" : prev.badge,
                         minPax: Math.max(20, prev.minPax || 50),
                         mainDishesCount: Math.max(3, prev.mainDishesCount || 5),
                         regSidesCount: prev.regSidesCount ?? 1,
@@ -1431,6 +1487,79 @@ export default function AdminPackageManager({
                   >
                     🧀 Grazing Table
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPkg(prev => ({
+                        ...prev,
+                        serviceType: "packed_meal",
+                        badge: "Min 50 PAX",
+                        pricePerPax: 175,
+                        minPax: 50,
+                        mainDishesCount: 1,
+                        regSidesCount: 1,
+                        specSidesCount: 0,
+                        regDessertsCount: 0,
+                        specDessertsCount: 0
+                      }));
+                    }}
+                    style={{
+                      padding: "0.6rem 0.4rem",
+                      borderRadius: "8px",
+                      border: editingPkg.serviceType === "packed_meal" ? "2px solid #ea580c" : "1px solid var(--border-subtle)",
+                      background: editingPkg.serviceType === "packed_meal" ? "#fff7ed" : "#ffffff",
+                      color: editingPkg.serviceType === "packed_meal" ? "#c2410c" : "var(--text-secondary)",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "0.35rem",
+                      fontSize: "0.78rem"
+                    }}
+                  >
+                    🍱 Packed Meal
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPkg(prev => ({
+                        ...prev,
+                        serviceType: "promo",
+                        badge: "🎄 Bermonths Promo",
+                        price: 20000,
+                        pricePerPax: 400,
+                        minPax: 50,
+                        paxRange: "Good for 50 PAX",
+                        promoStartDate: prev.promoStartDate || "2026-09-30",
+                        promoEndDate: prev.promoEndDate || "2026-12-31",
+                        promoIsActive: prev.promoIsActive !== undefined ? prev.promoIsActive : true,
+                        mainDishesCount: 2,
+                        regSidesCount: 1,
+                        specSidesCount: 0,
+                        regDessertsCount: 1,
+                        specDessertsCount: 0
+                      }));
+                    }}
+                    style={{
+                      padding: "0.6rem 0.4rem",
+                      borderRadius: "8px",
+                      border: editingPkg.serviceType === "promo" ? "2px solid #dc2626" : "1px solid var(--border-subtle)",
+                      background: editingPkg.serviceType === "promo" ? "#fef2f2" : "#ffffff",
+                      color: editingPkg.serviceType === "promo" ? "#b91c1c" : "var(--text-secondary)",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "0.35rem",
+                      fontSize: "0.78rem"
+                    }}
+                  >
+                    🎄 Promo
+                  </button>
                 </div>
               </div>
 
@@ -1441,6 +1570,54 @@ export default function AdminPackageManager({
                 </div>
                 <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
                   {/* Pica Pica Presets */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPkg(prev => ({
+                        ...prev,
+                        serviceType: "pica_pica",
+                        name: "Petite Package (Pica Pica / Grazing)",
+                        subtitle: "3 Kilos Cured Meats, 3 Cheeses, 3 Fruit Platters, 3 Canapés & 2 Sliders",
+                        price: 25000,
+                        pricePerPax: 500,
+                        minPax: 30,
+                        maxPax: 50,
+                        paxRange: "Good for 30-50 PAX",
+                        badge: "30-50 PAX • ₱25k",
+                        picaAllowances: { sliders: 2, canapes: 3, fingerFood: 0, miniDesserts: 0, drinks: 0 },
+                        grazingAllowances: { sliders: 2, canapes: 3 },
+                        inclusionsText: "3 Kilos of Italian Cured Meats\n3 Types of Imported Cheeses\n3 Big Seasonal Fruit Platter\n3 Canapés, 2 Sliders\nMix Assorted Nuts and Dried Fruits\nWafers, Saltin Crackers, Bretzels\nArtisan Breadbasket with Jam and Bread"
+                      }));
+                    }}
+                    style={{ fontSize: "0.72rem", padding: "4px 8px", borderRadius: "6px", background: "#ecfdf5", border: "1px solid #10b981", color: "#065f46", fontWeight: 600, cursor: "pointer" }}
+                  >
+                    🍢 Petite Package (₱25k / 30-50 PAX)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPkg(prev => ({
+                        ...prev,
+                        serviceType: "pica_pica",
+                        name: "Party Package (Pica Pica / Grazing)",
+                        subtitle: "4 Kilos Cured Meats, 4 Cheeses, 4 Fruit Platters, 4 Canapés, 3 Sliders & Sausage Platter",
+                        price: 45000,
+                        pricePerPax: 450,
+                        minPax: 50,
+                        maxPax: 100,
+                        paxRange: "Good for 50-100 PAX",
+                        badge: "50-100 PAX • ₱45k",
+                        picaAllowances: { sliders: 3, canapes: 4, fingerFood: 0, miniDesserts: 0, drinks: 0 },
+                        grazingAllowances: { sliders: 3, canapes: 4 },
+                        inclusionsText: "4 Kilos of Italian Cured Meats\n4 Types of Imported Cheeses\n4 Big Seasonal Fruit Platter\n4 Canapés, 3 Sliders\nMix Assorted Nuts and Dried Fruits\nWafers, Saltin Crackers, Bretzels\nVegetables Sticks\nOlives, Cocktail Onions\nHungarian Sausage Platter\nArtisan Breadbasket with Jam and Bread"
+                      }));
+                    }}
+                    style={{ fontSize: "0.72rem", padding: "4px 8px", borderRadius: "6px", background: "#ecfdf5", border: "1px solid #10b981", color: "#065f46", fontWeight: 600, cursor: "pointer" }}
+                  >
+                    🍢 Party Package (₱45k / 50-100 PAX)
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => {
@@ -1629,6 +1806,221 @@ export default function AdminPackageManager({
                   >
                     🍽️ Classic Buffet (5 Mains)
                   </button>
+
+                  {/* Packed Meal Presets */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPkg(prev => ({
+                        ...prev,
+                        serviceType: "packed_meal",
+                        name: "Packed Meal PM 1 (1 Main, 1 Side, Rice, Soda)",
+                        subtitle: "Choice of Fried Chicken, Breaded Pork Chop, or Fish Fillet (Min 50 PAX)",
+                        price: "",
+                        pricePerPax: 175,
+                        minPax: 50,
+                        badge: "PM 1 (Min 50PAX)",
+                        mainDishesCount: 1,
+                        regSidesCount: 1,
+                        specSidesCount: 0,
+                        regDessertsCount: 0,
+                        specDessertsCount: 0,
+                        inclusionsText: "1 Main Viand (Fried Chicken / Breaded Pork Chop / Fish Fillet)\n1 Side Dish (Tuna Macaroni Salad / Buttered Veg / Sotanghon Guisado)\nChoice of Plain Rice or Garlic Rice\nChoice of Soda (Coke / Sprite / Royal)\nIndividual bento packaging with disposable cutlery & napkin\nMinimum booking: 50 PAX"
+                      }));
+                    }}
+                    style={{ fontSize: "0.72rem", padding: "4px 8px", borderRadius: "6px", background: "#fff7ed", border: "1px solid #ea580c", color: "#c2410c", fontWeight: 600, cursor: "pointer" }}
+                  >
+                    🍱 PM 1 (₱175/pax)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPkg(prev => ({
+                        ...prev,
+                        serviceType: "packed_meal",
+                        name: "Packed Meal PM 2 (1 Main, 2 Sides, Rice, Soda)",
+                        subtitle: "Choice of Pork/Chicken Ala King, Curry Sauce, or Sweet & Sour / Pork BBQ (Min 50 PAX)",
+                        price: "",
+                        pricePerPax: 199,
+                        minPax: 50,
+                        badge: "PM 2 (Min 50PAX)",
+                        mainDishesCount: 1,
+                        regSidesCount: 2,
+                        specSidesCount: 0,
+                        regDessertsCount: 0,
+                        specDessertsCount: 0,
+                        inclusionsText: "1 Main Viand (Crispy Pork/Chicken Ala King / Breaded Curry / Pork BBQ)\n2 Side Dishes (Pasta, Lumpia, Sotanghon, Veg)\nChoice of Plain Rice or Garlic Rice\nChoice of Soda (Coke / Sprite / Royal)\nIndividual bento packaging with cutlery & napkin\nMinimum booking: 50 PAX"
+                      }));
+                    }}
+                    style={{ fontSize: "0.72rem", padding: "4px 8px", borderRadius: "6px", background: "#fff7ed", border: "1px solid #ea580c", color: "#c2410c", fontWeight: 600, cursor: "pointer" }}
+                  >
+                    🍱 PM 2 (₱199/pax)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPkg(prev => ({
+                        ...prev,
+                        serviceType: "packed_meal",
+                        name: "Packed Meal PM 3 Deluxe (2 Mains, 1 Side, Rice, Soda)",
+                        subtitle: "2 Gourmet Mains + 1 Side + Plain/Garlic/Java Rice + Soda (Min 50 PAX)",
+                        price: "",
+                        pricePerPax: 299,
+                        minPax: 50,
+                        badge: "PM 3 Deluxe (Min 50PAX)",
+                        mainDishesCount: 2,
+                        regSidesCount: 1,
+                        specSidesCount: 0,
+                        regDessertsCount: 0,
+                        specDessertsCount: 0,
+                        inclusionsText: "2 Gourmet Main Viands (Beef Stroganof / Cordon Bleu / Pork BBQ / Fish Fillet / Chicken BBQ)\n1 Side Dish (Mashed Potatoes / Sotanghon / Pancit Canton)\nChoice of Plain Rice, Garlic Rice, or Java Rice\nChoice of Soda\nDeluxe multi-compartment bento container with cutlery\nMinimum booking: 50 PAX"
+                      }));
+                    }}
+                    style={{ fontSize: "0.72rem", padding: "4px 8px", borderRadius: "6px", background: "#fff7ed", border: "1px solid #ea580c", color: "#c2410c", fontWeight: 600, cursor: "pointer" }}
+                  >
+                    🍱 PM 3 Deluxe (₱299)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPkg(prev => ({
+                        ...prev,
+                        serviceType: "packed_meal",
+                        name: "Packed Meal PM 4 Deluxe (1 Main, 2 Sides, Dessert Cup, Rice, Soda)",
+                        subtitle: "1 Main + 2 Sides + 1 Dessert Cup + Java/Garlic/Plain Rice + Soda (Min 50 PAX)",
+                        price: "",
+                        pricePerPax: 250,
+                        minPax: 50,
+                        badge: "PM 4 Deluxe (Min 50PAX)",
+                        mainDishesCount: 1,
+                        regSidesCount: 2,
+                        specSidesCount: 0,
+                        regDessertsCount: 1,
+                        specDessertsCount: 0,
+                        inclusionsText: "1 Gourmet Main Viand (Beef Broccoli / Pork or Chicken Estofado / Beef Bakareta)\n2 Side Dishes (Spaghetti / Pesto, Shanghai, Chopsuey, Fish Tofu, Croquettes)\n1 Dessert Cup (Creamy Fruit Salad / Mango Tapioca / Strawberry Shortcake)\nChoice of Plain, Garlic, or Java Rice\nChoice of Soda\nDeluxe bento packaging with cutlery\nMinimum booking: 50 PAX"
+                      }));
+                    }}
+                    style={{ fontSize: "0.72rem", padding: "4px 8px", borderRadius: "6px", background: "#fff7ed", border: "1px solid #ea580c", color: "#c2410c", fontWeight: 600, cursor: "pointer" }}
+                  >
+                    🍱 PM 4 Deluxe (₱250)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPkg(prev => ({
+                        ...prev,
+                        serviceType: "packed_meal",
+                        name: "Packed Meal PM 5 Premium (2 Mains, 1 Side, Dessert, Rice, Soda, Water)",
+                        subtitle: "2 Premium Mains + 1 Side + 1 Dessert + Rice + Soda/C2 + Bottled Water (Min 50 PAX)",
+                        price: "",
+                        pricePerPax: 385,
+                        minPax: 50,
+                        badge: "PM 5 Premium (Min 50PAX)",
+                        mainDishesCount: 2,
+                        regSidesCount: 1,
+                        specSidesCount: 0,
+                        regDessertsCount: 1,
+                        specDessertsCount: 0,
+                        inclusionsText: "2 Premium Main Viands (Beef Stroganof, Teriyaki, Bakareta, Cordon Bleu, Bangus, Tonkatsu)\n1 Side Dish (Sautéed Veg / Penne Pasta or Tuna Pesto / Fresh Lumpia)\n1 Dessert Cup (Mango Tapioca / Creamy Fruit Salad)\nPlain Rice / Garlic Rice / Java Rice\nChoice of Soda or C2 Green Tea\n1 Bottled Water\nExecutive heavy-duty bento tray with cutlery\nMinimum booking: 50 PAX"
+                      }));
+                    }}
+                    style={{ fontSize: "0.72rem", padding: "4px 8px", borderRadius: "6px", background: "#fff7ed", border: "1px solid #ea580c", color: "#c2410c", fontWeight: 600, cursor: "pointer" }}
+                  >
+                    🍱 PM 5 Premium (₱385)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPkg(prev => ({
+                        ...prev,
+                        serviceType: "packed_meal",
+                        name: "Packed Meal PM 6 Premium (2 Mains, 2 Sides, Dessert, Rice, Soda, Water)",
+                        subtitle: "2 Premium Mains + 2 Sides + 1 Dessert + Rice + Soda/C2 + Bottled Water (Min 50 PAX)",
+                        price: "",
+                        pricePerPax: 425,
+                        minPax: 50,
+                        badge: "PM 6 Premium (Min 50PAX)",
+                        mainDishesCount: 2,
+                        regSidesCount: 2,
+                        specSidesCount: 0,
+                        regDessertsCount: 1,
+                        specDessertsCount: 0,
+                        inclusionsText: "2 Premium Main Viands (Crispy Kare Kare, Chicken BBQ, Bakareta, Cordon Bleu, Hamonado, Fingers)\n2 Side Dishes (Chopsuey, Shanghai, Penne Pasta / Tuna Pesto, Fish Tofu, Meat Balls)\n1 Dessert Cup (Mango Tapioca / Strawberry Shortcake / Fruit Salad)\nPlain Rice / Garlic Rice / Java Rice\nChoice of Soda or C2 Green Tea\n1 Bottled Water\nVIP Executive bento tray with cutlery\nMinimum booking: 50 PAX"
+                      }));
+                    }}
+                    style={{ fontSize: "0.72rem", padding: "4px 8px", borderRadius: "6px", background: "#fff7ed", border: "1px solid #ea580c", color: "#c2410c", fontWeight: 600, cursor: "pointer" }}
+                  >
+                    🍱 PM 6 Premium (₱425)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPkg(prev => ({
+                        ...prev,
+                        serviceType: "promo",
+                        name: "Bermonths Promo 50 PAX (Full Catering + Mini Grazing Table)",
+                        subtitle: "Full Catering Starts for Only ₱35,000 Good for 50 PAX • Good Food, Brighter Gatherings ♡",
+                        price: 35000,
+                        pricePerPax: 700,
+                        minPax: 50,
+                        maxPax: 50,
+                        paxRange: "Good for 50 PAX",
+                        badge: "🎄 ₱35,000 for 50 PAX",
+                        promoStartDate: "2026-09-30",
+                        promoEndDate: "2026-12-31",
+                        promoRunsText: "SEPTEMBER 30 - DECEMBER 31",
+                        promoIsActive: true,
+                        mainDishesCount: 2,
+                        regSidesCount: 1,
+                        specSidesCount: 0,
+                        regDessertsCount: 1,
+                        specDessertsCount: 0,
+                        inclusionsText: "2 Regular Mains (Choice of Beef, Pork, Chicken, Seafood)\n1 Regular Side (Pasta, Noodles, or Vegetable dish)\n1 Regular Dessert (Filipino sweet desserts)\nHot Soup (Choice of Cream of Corn, Wild Mushroom, Roasted Pumpkin, Sotanghon Broth)\nSteamed Pandan Jasmine Rice\nChoice of: Chilled Soda or Fruit Juice\nMini Grazing Table (Charcuterie Platter, Fruit Platter, DIY Nachos w/ Cheese Fountain, Canapés & Mini Cups)\nRustic Buffet Table Set up with warming chafers & styling\nTables and chairs for guests with table skirting, chair cover, simple table center pc, fine dinning set up\nFree transportation with in these areas: City of Iloilo, Cabatuan, Sta Barbara, Pavia, San Miguel, Janiuay, Maasin\nWith friendly uniformed servers/staffs (4hrs full catering service)\nService water\nBasic Balloon Backdrop"
+                      }));
+                    }}
+                    style={{ fontSize: "0.72rem", padding: "4px 8px", borderRadius: "6px", background: "#fef2f2", border: "1px solid #ef4444", color: "#b91c1c", fontWeight: 700, cursor: "pointer" }}
+                  >
+                    🎄 Promo 50 PAX (₱35k + Grazing)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPkg(prev => ({
+                        ...prev,
+                        serviceType: "promo",
+                        name: "Bermonths Promo 100 PAX (Full Catering + Mini Grazing Table + Whole Lechon)",
+                        subtitle: "Full Catering Starts for Only ₱75,000 Good for 100 PAX • Good Food, Brighter Gatherings ♡",
+                        price: 75000,
+                        pricePerPax: 750,
+                        minPax: 100,
+                        maxPax: 100,
+                        paxRange: "Good for 100 PAX",
+                        badge: "🎄 ₱75,000 for 100 PAX • With Lechon",
+                        promoStartDate: "2026-09-30",
+                        promoEndDate: "2026-12-31",
+                        promoRunsText: "SEPTEMBER 30 - DECEMBER 31",
+                        promoIsActive: true,
+                        hasLechon: true,
+                        lechonDetails: "1 Whole Lechon (50kg Live weight)",
+                        mainDishesCount: 3,
+                        regSidesCount: 1,
+                        specSidesCount: 0,
+                        regDessertsCount: 1,
+                        specDessertsCount: 0,
+                        inclusionsText: "3 Regular Mains (Choice of Beef, Pork, Chicken, Seafood)\n1 Regular Side (Pasta, Noodles, or Vegetable dish)\n1 Regular Dessert (Filipino sweet desserts)\nHot Soup (Choice of Cream of Corn, Wild Mushroom, Roasted Pumpkin, Sotanghon Broth)\nSteamed Pandan Jasmine Rice\nChoice of: Chilled Soda or Fruit Juice\nMini Grazing Table (Charcuterie Platter, Fruit Platter, DIY Nachos w/ Cheese Fountain, Canapés & Mini Cups)\n1 Whole Lechon (50kg Live weight)\nBuffet table set up with full set of serving utensils and chafing dish\nTables and chairs for guests with table skirting, chair cover, simple table centerpiece, fine dining set up\nFree transportation within the following areas: City of Iloilo, Cabatuan, Sta Barbara, Pavia, San Miguel, Janiuay, Maasin\nAssorted drinks and ice\nWith friendly uniformed servers/staffs (4hrs full catering service)\nBasic Balloon Backdrop"
+                      }));
+                    }}
+                    style={{ fontSize: "0.72rem", padding: "4px 8px", borderRadius: "6px", background: "#fef3c7", border: "1px solid #f59e0b", color: "#92400e", fontWeight: 700, cursor: "pointer" }}
+                  >
+                    🎄 Promo 100 PAX (₱75k + Grazing + Lechon)
+                  </button>
                 </div>
               </div>
 
@@ -1656,7 +2048,93 @@ export default function AdminPackageManager({
               </div>
 
               {/* Pricing & Pax Grid */}
-              {editingPkg.serviceType === "grazing_table" || editingPkg.serviceType === "food_tray" ? (
+              {editingPkg.serviceType === "promo" || editingPkg.isPromo ? (
+                <div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
+                    <div className="form-group">
+                      <label className="form-label">Base Promo Price (₱) *</label>
+                      <input
+                        type="number"
+                        required
+                        min="1000"
+                        placeholder="20000"
+                        className="form-input"
+                        value={editingPkg.price ?? 20000}
+                        onChange={(e) => setEditingPkg(prev => ({ ...prev, price: e.target.value }))}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Base Included Guests (PAX) *</label>
+                      <input
+                        type="number"
+                        required
+                        min="20"
+                        className="form-input"
+                        value={editingPkg.minPax ?? 50}
+                        onChange={(e) => setEditingPkg(prev => ({ ...prev, minPax: e.target.value }))}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Extra Guest Rate (₱/pax)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        className="form-input"
+                        placeholder="400"
+                        value={editingPkg.pricePerPax ?? 400}
+                        onChange={(e) => setEditingPkg(prev => ({ ...prev, pricePerPax: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Customizable Promo Date Range & Status */}
+                  <div style={{ marginBottom: "1.25rem", padding: "0.85rem", background: "#fef2f2", borderRadius: "8px", border: "1.5px solid #fca5a5" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.6rem" }}>
+                      <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "#b91c1c" }}>
+                        📅 CUSTOMIZABLE PROMO PERIOD & ELIGIBILITY:
+                      </span>
+                      <label style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.8rem", color: "#991b1b", fontWeight: 600, cursor: "pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={editingPkg.promoIsActive !== false}
+                          onChange={(e) => setEditingPkg(prev => ({ ...prev, promoIsActive: e.target.checked }))}
+                        />
+                        <span>Active Promo</span>
+                      </label>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                      <div>
+                        <label style={{ display: "block", fontSize: "0.74rem", fontWeight: 600, color: "#7f1d1d", marginBottom: "0.25rem" }}>
+                          Promo Start Date
+                        </label>
+                        <input
+                          type="date"
+                          className="form-input"
+                          value={editingPkg.promoStartDate || "2026-09-30"}
+                          onChange={(e) => setEditingPkg(prev => ({ ...prev, promoStartDate: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: "0.74rem", fontWeight: 600, color: "#7f1d1d", marginBottom: "0.25rem" }}>
+                          Promo End Date
+                        </label>
+                        <input
+                          type="date"
+                          className="form-input"
+                          value={editingPkg.promoEndDate || "2026-12-31"}
+                          onChange={(e) => setEditingPkg(prev => ({ ...prev, promoEndDate: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                    <div style={{ fontSize: "0.72rem", color: "#991b1b", marginTop: "0.5rem" }}>
+                      * Booking dates within this range will automatically activate Bermonths holiday promo pricing and inclusions.
+                    </div>
+                  </div>
+                </div>
+              ) : (editingPkg.serviceType === "grazing_table" || editingPkg.serviceType === "food_tray") ? (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
                   <div className="form-group">
                     <label className="form-label">Fixed Package Price (₱) *</label>

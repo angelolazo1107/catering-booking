@@ -1200,7 +1200,15 @@ export default function BookingsDashboard({
                           <td>
                             <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
                               <span style={{ fontWeight: 600 }}>{q.packageName}</span>
-                              {q.serviceType === "food_tray" || q.isFoodTray || q.packageId?.startsWith("food_tray") ? (
+                              {q.serviceType === "promo" || q.isPromo || q.packageId?.startsWith("promo_") ? (
+                                <span style={{ fontSize: "0.65rem", background: "#fef2f2", color: "#b91c1c", border: "1px solid #fca5a5", padding: "1px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                                  🎄 Bermonths Promo
+                                </span>
+                              ) : q.serviceType === "packed_meal" || q.isPackedMeal || q.packageId?.startsWith("pm_") ? (
+                                <span style={{ fontSize: "0.65rem", background: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", padding: "1px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                                  🍱 Packed Meal
+                                </span>
+                              ) : q.serviceType === "food_tray" || q.isFoodTray || q.packageId?.startsWith("food_tray") ? (
                                 <span style={{ fontSize: "0.65rem", background: "var(--gold-100)", color: "var(--gold-800)", padding: "1px 6px", borderRadius: "4px", fontWeight: 700 }}>
                                   🍱 Food Tray
                                 </span>

@@ -406,11 +406,70 @@ export function generateDefaultIngressInventory(quotation = {}) {
   ];
 
   // Check service types
+  const isPackedMeal = quotation.serviceType === "packed_meal" || quotation.isPackedMeal || (quotation.packageId && quotation.packageId.startsWith("pm_"));
   const isFoodTray = quotation.serviceType === "food_tray" || quotation.isFoodTray || (quotation.packageId && quotation.packageId.startsWith("food_tray"));
   const isPicaPica = quotation.serviceType === "pica_pica" || quotation.isPicaPica || (quotation.packageId && quotation.packageId.startsWith("pica_pica"));
   const isGrazing = quotation.serviceType === "grazing_table" || quotation.isGrazingTable || (quotation.packageId && quotation.packageId.startsWith("grazing_"));
 
-  // 1. Specialized Food Tray Delivery Equipment
+  // 1. Specialized Packed Meal Delivery Equipment
+  if (isPackedMeal) {
+    const mealBoxesCount = Math.max(50, Math.ceil(platePax));
+    const thermalBoxesCount = Math.max(2, Math.ceil(mealBoxesCount / 20));
+    return [
+      {
+        id: "eq_pm_thermal_carriers",
+        category: "logistics",
+        description: "INSULATED THERMAL BENTO CARRIER BOXES",
+        qty: thermalBoxesCount,
+        unit: "SETS",
+        remarks: "Keeps packed meals warm during transport",
+        ingressChecked: false,
+        egressChecked: false
+      },
+      {
+        id: "eq_pm_bento_boxes",
+        category: "dinnerware",
+        description: "COMPARTMENT BENTO MEAL BOXES WITH SECURE LIDS",
+        qty: mealBoxesCount,
+        unit: "SETS",
+        remarks: "Food-grade sealed bento containers",
+        ingressChecked: false,
+        egressChecked: false
+      },
+      {
+        id: "eq_pm_cutlery_packs",
+        category: "dinnerware",
+        description: "INDIVIDUAL PACKED CUTLERY SETS (Spoon, Fork, Napkin, Toothpick)",
+        qty: mealBoxesCount,
+        unit: "SETS",
+        remarks: "Hygienic individually wrapped dining sets",
+        ingressChecked: false,
+        egressChecked: false
+      },
+      {
+        id: "eq_pm_beverage_ice_cooler",
+        category: "logistics",
+        description: "INSULATED ICE COOLER / CHEST FOR BEVERAGES & WATER",
+        qty: Math.max(1, Math.ceil(mealBoxesCount / 50)),
+        unit: "SETS",
+        remarks: "Chills canned sodas, C2, and bottled water",
+        ingressChecked: false,
+        egressChecked: false
+      },
+      {
+        id: "eq_pm_heavy_trash_bags",
+        category: "logistics",
+        description: "HEAVY-DUTY TRASH BAGS (BLACK)",
+        qty: 4,
+        unit: "PCS",
+        remarks: "For event waste management & drop-off packaging",
+        ingressChecked: false,
+        egressChecked: false
+      }
+    ];
+  }
+
+  // 2. Specialized Food Tray Delivery Equipment
   if (isFoodTray) {
     return [
       {

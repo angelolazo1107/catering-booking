@@ -3,17 +3,23 @@ import { CATERER_INFO } from "../data/cateringData";
 import { getStoredCompanies, getActiveCompany, DEFAULT_TERMS_AND_CONDITIONS, DEFAULT_PACKAGE_INCLUSIONS } from "../data/tenantSchema";
 import { Printer, ArrowLeft, CheckCircle2, Copy, Check, Share2, ClipboardCheck, CreditCard, Landmark, MapPin } from "lucide-react";
 import confetti from "canvas-confetti";
-import { formatBookingReference, formatTime12Hour } from "../utils/bookingUtils";
+import { formatBookingReference, formatTime12Hour, formatDisplayDate, parseLocalDate } from "../utils/bookingUtils";
 
 export default function PrintableQuotation({ quotation, catererInfo, onBack, onConfirmBooking, onOpenIngress, isAdmin = false }) {
   const [copied, setCopied] = useState(false);
   const [currentStatus, setCurrentStatus] = useState(quotation?.status || "Draft");
 
+  const [quotationNotes, setQuotationNotes] = useState(quotation?.notes || "");
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+
   useEffect(() => {
     if (quotation?.status) {
       setCurrentStatus(quotation.status);
     }
-  }, [quotation?.status]);
+    if (quotation?.notes !== undefined) {
+      setQuotationNotes(quotation.notes || "");
+    }
+  }, [quotation?.status, quotation?.notes]);
 
   if (!quotation) return null;
 
@@ -47,6 +53,58 @@ export default function PrintableQuotation({ quotation, catererInfo, onBack, onC
     quotation.packageId?.startsWith("grazing_table")
   );
 
+  const isPackedMeal = Boolean(
+    quotation.serviceType === "packed_meal" || 
+    quotation.isPackedMeal || 
+    quotation.packageId?.startsWith("pm_") ||
+    quotation.packageId?.startsWith("packed_meal")
+  );
+
+  const isPromo = Boolean(
+    quotation.serviceType === "promo" ||
+    quotation.isPromo ||
+    quotation.packageId === "promo_bermonths" ||
+    quotation.packageId?.startsWith("promo_")
+  );
+
+  const promoTerms = [
+    `**Promo Validity Period**: This promotional package rate is strictly valid for event schedules from **${quotation.promoStartDate || "September 30"}** to **${quotation.promoEndDate || "December 31"}**.`,
+    "**Minimum Headcount**: A minimum booking guarantee of **50 PAX** is strictly required for this promotional package.",
+    "**Free Transportation Zone**: Transportation is **FREE** for: **City of Iloilo, Cabatuan, Sta. Barbara, Pavia, San Miguel, Janiuay, Maasin**.",
+    "**Service Duration**: Standard **4 Hours Full Catering Service** with friendly uniformed banquet servers and buffet attendants.",
+    "**Guest Dining Setup**: Full guest tables and chairs with elegant table skirting, chair covers, simple centerpieces, and fine dining tableware setup.",
+    "**Payment Terms**: A **50% Downpayment** is required upon confirmation to assure your booking reservation. Remaining balance is due on or before event day."
+  ];
+
+  const promoInclusions = [
+    `**Bermonths Promo Headcount**: Full catering services for **${quotation.pax} Confirmed Guests** (Base: 50 Pax • Starts at ₱20,000)`,
+    `**Promo Run Dates**: **${quotation.promoRunsText || (quotation.promoStartDate ? `${quotation.promoStartDate} to ${quotation.promoEndDate}` : "September 30 - December 31")}**`,
+    "**Course Formula**: 2 Regular Mains + 1 Regular Side + 1 Regular Dessert + Hot Soup + Steamed Jasmine Rice + Soda or Juice",
+    quotation.selectedSoup ? `**Included Soup**: ${quotation.selectedSoup}` : "**Soup**: Hot savory soup included",
+    "**Buffet Table Setup**: Rustic Buffet Table setup with chafing dishes, warmers, and styling",
+    "**Guest Dining Setup**: Tables and chairs for guests with table skirting, chair covers, simple centerpieces & fine dining chinaware/cutlery",
+    "**Service Staff**: Friendly uniformed servers and buffet staff for 4 hours duration",
+    "**Beverage & Water**: Choice of Soda or Juice + Service Water & ice station",
+    "**Free Transportation**: City of Iloilo, Cabatuan, Sta. Barbara, Pavia, San Miguel, Janiuay, Maasin"
+  ];
+
+  const packedMealTerms = [
+    "**Minimum Headcount**: A minimum booking guarantee of **50 PAX** is strictly required for packed meal / bento orders.",
+    "**Transportation & Delivery**: FREE local delivery within **Iloilo City, Pavia, Sta. Barbara, Cabatuan, Maasin, San Miguel, Janiuay** for qualifying orders.",
+    "**Lead Time Requirement**: Orders must be confirmed at least **2-3 days prior** to your scheduled delivery date.",
+    "**Payment Terms**: A **50% Downpayment** is required upon confirmation to secure the slot. The remaining balance is payable upon delivery.",
+    "**Cancellation Policy**: **STRICTLY NO CANCELLATION OF ORDERS**. A **70% fee** applies once food prep and bento materials are allocated.",
+    "**Packaging & Hygiene**: Delivered in heavy-duty food-grade compartmentalized bento containers with individually wrapped cutlery sets (spoon, fork, napkin, toothpick)."
+  ];
+
+  const packedMealInclusions = [
+    `**Bento Meal Headcount**: Individually packed for **${quotation.pax} Guests** (Min 50 Pax)`,
+    quotation.selectedPackedMealSet ? `**Selected Chef Pre-Set Combo**: Option **${quotation.selectedPackedMealSet}**` : null,
+    quotation.inclusions?.length > 0 ? `**Package Formula**: ${quotation.inclusions.slice(0, 3).join(", ")}` : "**Inclusions**: Complete bento meal with main dishes, sides, rice & drinks",
+    "**Cutlery & Utensils**: Individually sealed utensil pack per bento box (spoon, fork, toothpick, tissue)",
+    "**Logistics Warmers**: Transported in heavy-duty insulated thermal food carriers to preserve serving temperature upon handover"
+  ].filter(Boolean);
+
   const foodTrayTerms = [
     "**Transportation Fee Waiver**: Transportation fee is **FREE** for these designated areas: **Iloilo City, Pavia, Sta. Barbara, Cabatuan, Maasin, San Miguel, Janiuay**.",
     "**Lead Time Requirement**: Orders and bookings must be placed at least **2-3 days prior** to event/delivery schedule.",
@@ -76,18 +134,24 @@ export default function PrintableQuotation({ quotation, catererInfo, onBack, onC
   ];
 
   const picaPicaInclusions = [
-    `**Station Capacity**: Service catered for **${quotation.pax} Pax** (Minimum 50 Pax)`,
-    `**Curated Food Choices**: Includes ${quotation.selectedSliders?.length || 0} Sliders, ${quotation.selectedCanapes?.length || 0} Canapés, ${quotation.selectedFingerFoods?.length || 0} Finger Food items, and ${quotation.selectedMiniDesserts?.length || 0} Mini Dessert Cups`,
+    quotation.paxRange 
+      ? `**Serving Capacity**: **${quotation.paxRange}**` 
+      : `**Station Capacity**: Service catered for **${quotation.pax} Pax** (Minimum 50 Pax)`,
+    quotation.inclusions?.length > 0
+      ? `**Package Highlights**: ${quotation.inclusions.slice(0, 4).join(", ")}`
+      : `**Curated Food Choices**: Includes ${quotation.selectedSliders?.length || 0} Sliders, ${quotation.selectedCanapes?.length || 0} Canapés${quotation.selectedFingerFoods?.length > 0 ? `, ${quotation.selectedFingerFoods.length} Finger Food items` : ""}${quotation.selectedMiniDesserts?.length > 0 ? `, and ${quotation.selectedMiniDesserts.length} Mini Dessert Cups` : ""}`,
     quotation.picaDiyStation 
       ? `**Interactive Station & Delicacy**: Choice of **${quotation.picaDiyStation}** + Pinoy Kakanins Platter`
-      : "**Interactive Station**: Optional upgrade / available in Option 3 tier",
-    `**Beverage Service**: Choice of **${quotation.picaBeverage || "Juice or Coffee"}** station with dispensers, cups/glassware, and ice`,
+      : null,
+    quotation.picaBeverage && !quotation.packageId?.includes("petite") && !quotation.packageId?.includes("party")
+      ? `**Beverage Service**: Choice of **${quotation.picaBeverage}** station with dispensers, cups/glassware, and ice`
+      : null,
     "**Cocktail Styling & Equipment**: Premium wooden crates, elevated acrylic risers, warm spotlights, slate boards, cocktail picks, and napkins",
     "**Service Staff**: Professional uniformed cocktail attendants for continuous replenishment and station tidiness"
-  ];
+  ].filter(Boolean);
 
   const grazingTableTerms = [
-    `**Serving Capacity**: Flat-rate luxury setup tailored for **${quotation.paxRange || (quotation.packageName?.includes("Premium") ? "150-200 PAX" : "100-150 PAX")}**.`,
+    `**Serving Capacity**: Flat-rate luxury setup tailored for **${quotation.paxRange || (quotation.packageName?.includes("Premium") ? "150-200 PAX" : quotation.packageName?.includes("Party") ? "50-100 PAX" : quotation.packageName?.includes("Petite") ? "30-50 PAX" : "100-150 PAX")}**.`,
     "**Ingress & Art Styling**: Requires **2.5 to 3 hours ingress** prior to event start for food styling, elevated floral/foliage accents, and temperature-controlled cheese/charcuterie staging.",
     "**Service Duration & Teardown**: Display setup covers up to **4 hours** of event duration; catering team handles teardown and equipment retrieval.",
     "**Payment Terms**: A **50% Downpayment** is required upon confirmation to assure booking. Remaining balance is due prior to event commencement.",
@@ -95,35 +159,44 @@ export default function PrintableQuotation({ quotation, catererInfo, onBack, onC
   ];
 
   const grazingTableInclusions = [
-    `**Fixed Grazing Capacity**: Good for **${quotation.paxRange || (quotation.packageName?.includes("Premium") ? "150-200 PAX" : "100-150 PAX")}**`,
-    "**Artisan Charcuterie**: 5 Kilos of Imported Italian Cured Meats (Prosciutto, Salami, Coppa Ham, etc.)",
-    "**Gourmet Cheeses**: 5 Types of Premium Cheeses paired with Honeycomb & Fruit Jams",
-    "**Fresh Platters & Crudités**: 5 Big Seasonal Fresh Fruit Platters + Fresh Vegetable Sticks with Dips",
-    "**Savory Inclusions**: Hungarian Sausage Platter + Individual Grazing Cups + Nachos Station with Dips",
-    "**Artisan Bread & Crunch**: Artisan Breadbasket with Jam & Bread, Saltin Crackers, Wafers, Pretzels, Mixed Nuts & Dried Fruits, Olives & Cocktail Onions",
-    `**Fresh Canapés & Sliders**: ${quotation.selectedCanapes?.length || 5} Gourmet Canapés & ${quotation.selectedSliders?.length || 4} Gourmet Sliders`,
+    `**Fixed Grazing Capacity**: Good for **${quotation.paxRange || (quotation.packageName?.includes("Premium") ? "150-200 PAX" : quotation.packageName?.includes("Party") ? "50-100 PAX" : quotation.packageName?.includes("Petite") ? "30-50 PAX" : "100-150 PAX")}**`,
+    quotation.inclusions?.length > 0
+      ? `**Artisan Spread Highlights**: ${quotation.inclusions.slice(0, 3).join(", ")}`
+      : "**Artisan Charcuterie**: 5 Kilos of Imported Italian Cured Meats (Prosciutto, Salami, Coppa Ham, etc.)",
+    quotation.inclusions?.length > 3
+      ? `**Gourmet Inclusions**: ${quotation.inclusions.slice(3, 7).join(", ")}`
+      : "**Gourmet Cheeses**: 5 Types of Premium Cheeses paired with Honeycomb & Fruit Jams",
+    `**Fresh Canapés & Sliders**: ${quotation.selectedCanapes?.length || 4} Gourmet Canapés & ${quotation.selectedSliders?.length || 3} Gourmet Sliders`,
     (quotation.selectedMiniDesserts?.length > 0 || quotation.packageName?.includes("Premium"))
       ? "**Gourmet Dessert Shots**: Assorted chilled shooter desserts & mini sweet bites"
       : null,
     "**Luxury Table Scaping**: Complete rustic/modern aesthetic grazing flat-lay or elevated multi-tiered setup with boards, risers, foliage, and greenery accents",
     "**Cocktail Utensils**: Tongs, cocktail picks, wooden cutlery, napkins, and grazing boats/plates"
-  ];
+  ].filter(Boolean);
 
   // Resolve active Terms & Conditions and Package Inclusions from company settings or fallbacks
-  const activeTerms = isPicaPica
+  const activeTerms = isPromo
+    ? promoTerms
+    : isPicaPica
     ? picaPicaTerms
     : isGrazingTable
     ? grazingTableTerms
+    : isPackedMeal
+    ? packedMealTerms
     : isFoodTray
     ? foodTrayTerms
     : ((Array.isArray(activeCaterer.termsAndConditions) && activeCaterer.termsAndConditions.length > 0 && !activeCaterer.termsAndConditions[0]?.includes("50% reservation downpayment"))
       ? activeCaterer.termsAndConditions
       : DEFAULT_TERMS_AND_CONDITIONS);
 
-  const activeInclusions = isPicaPica
+  const activeInclusions = isPromo
+    ? promoInclusions
+    : isPicaPica
     ? picaPicaInclusions
     : isGrazingTable
     ? grazingTableInclusions.filter(Boolean)
+    : isPackedMeal
+    ? packedMealInclusions
     : isFoodTray
     ? foodTrayInclusions
     : ((Array.isArray(activeCaterer.packageInclusions) && activeCaterer.packageInclusions.length > 0)
@@ -172,7 +245,7 @@ export default function PrintableQuotation({ quotation, catererInfo, onBack, onC
     .toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" });
 
   const eventDateFormatted = quotation.eventDate 
-    ? new Date(quotation.eventDate).toLocaleDateString("en-PH", { weekday: 'long', year: "numeric", month: "long", day: "numeric" })
+    ? formatDisplayDate(quotation.eventDate, { weekday: 'long', year: "numeric", month: "long", day: "numeric" })
     : "TBA";
 
   // Ensure non-VAT quotation display (if a quotation previously had VAT embedded, normalize clean non-VAT pricing)
@@ -184,7 +257,7 @@ export default function PrintableQuotation({ quotation, catererInfo, onBack, onC
   const isConference = Boolean(quotation.isConferenceBooking || quotation.eventType === "government_conference");
   const conferenceDaysCount = Math.max(1, Number(quotation.conferenceDays || 3));
   const conferenceEndDateFormatted = quotation.conferenceEndDate
-    ? new Date(quotation.conferenceEndDate).toLocaleDateString("en-PH", { weekday: 'long', year: "numeric", month: "long", day: "numeric" })
+    ? formatDisplayDate(quotation.conferenceEndDate, { weekday: 'long', year: "numeric", month: "long", day: "numeric" })
     : eventDateFormatted;
 
   const isConfirmedOrOngoing = currentStatus === "Confirmed" || currentStatus === "Ongoing" || currentStatus === "Completed";
@@ -390,7 +463,7 @@ Venue: ${quotation.venueName}, ${quotation.venueAddress}
 Guaranteed Pax: ${quotation.pax} Pax
 Package: ${quotation.packageName} (₱${quotation.pricePerPax}/pax)
 ${swapNote}${menuBlock}Add-ons: ${quotation.selectedAddons?.map(a => `${a.name} (x${a.qty})`).join(', ') || 'None'}
-*Balance Grand Total: ₱${cleanGrandTotal?.toLocaleString()} PHP*
+${quotationNotes ? `\n*NOTE / REMARKS:* ${quotationNotes}\n` : ''}*Balance Grand Total: ₱${cleanGrandTotal?.toLocaleString()} PHP*
 Accepted Payment Channels:
 - GCash: ${bankDetails.gcash?.number || activeCaterer.phone || "N/A"} (${bankDetails.gcash?.name || businessName})
 - Bank Transfer (${boundBankName}): Acct #${boundAccountNumber} (${boundAccountName})
@@ -403,7 +476,7 @@ Venue: ${quotation.venueName}, ${quotation.venueAddress}
 Guaranteed Pax: ${quotation.pax} Pax
 Package: ${quotation.packageName} (₱${quotation.pricePerPax}/pax)
 ${swapNote}${menuBlock}Add-ons: ${quotation.selectedAddons?.map(a => `${a.name} (x${a.qty})`).join(', ') || 'None'}
-*Balance Grand Total: ₱${cleanGrandTotal?.toLocaleString()} PHP*
+${quotationNotes ? `\n*NOTE / REMARKS:* ${quotationNotes}\n` : ''}*Balance Grand Total: ₱${cleanGrandTotal?.toLocaleString()} PHP*
 Accepted Payment Channels:
 - GCash: ${bankDetails.gcash?.number || activeCaterer.phone || "N/A"} (${bankDetails.gcash?.name || businessName})
 - Bank Transfer (${boundBankName}): Acct #${boundAccountNumber} (${boundAccountName})
@@ -834,11 +907,20 @@ Accepted Payment Channels:
                   </div>
                 </td>
                 <td style={{ textAlign: "center", verticalAlign: "top", paddingTop: "0.9rem" }}>
-                  <strong>{quotation.pax} pax</strong>
-                  <div style={{ fontSize: "0.72rem", color: "#64748b" }}>(Min 50 Pax)</div>
+                  <strong>{quotation.paxRange || `${quotation.pax} pax`}</strong>
+                  {quotation.packagePrice ? (
+                    <div style={{ fontSize: "0.72rem", color: "#64748b" }}>Package Rate</div>
+                  ) : (
+                    <div style={{ fontSize: "0.72rem", color: "#64748b" }}>(Min {quotation.minPax || 50} Pax)</div>
+                  )}
                 </td>
                 <td className="text-right" style={{ verticalAlign: "top", paddingTop: "0.9rem" }}>
-                  ₱{quotation.pricePerPax?.toLocaleString()} / pax
+                  {quotation.packagePrice 
+                    ? `₱${quotation.packagePrice.toLocaleString()}` 
+                    : `₱${quotation.pricePerPax?.toLocaleString()} / pax`}
+                  {quotation.packagePrice && (
+                    <div style={{ fontSize: "0.7rem", color: "#64748b" }}>Fixed Package</div>
+                  )}
                 </td>
                 <td className="text-right" style={{ verticalAlign: "top", paddingTop: "0.9rem", fontWeight: 700 }}>
                   ₱{quotation.foodTotal?.toLocaleString()}
@@ -856,7 +938,7 @@ Accepted Payment Channels:
                     </span>
                   </div>
                   <div style={{ fontSize: "0.76rem", color: "#64748b", marginBottom: "6px" }}>
-                    Serving Capacity: <strong>{quotation.paxRange || (quotation.packageName?.includes("Premium") ? "150-200 PAX" : "100-150 PAX")}</strong> • Flat-rate Curated Grazing Setup
+                    Serving Capacity: <strong>{quotation.paxRange || (quotation.packageName?.includes("Premium") ? "150-200 PAX" : quotation.packageName?.includes("Party") ? "50-100 PAX" : quotation.packageName?.includes("Petite") ? "30-50 PAX" : "100-150 PAX")}</strong> • Flat-rate Curated Grazing Setup
                   </div>
 
                   {/* Grazing Inclusions & Choices */}
@@ -866,21 +948,25 @@ Accepted Payment Channels:
                         🧀 Charcuterie & Gourmet Inclusions:
                       </div>
                       <div style={{ paddingLeft: "0.2rem", fontStyle: "italic", color: "#334155", display: "flex", flexDirection: "column", gap: "2px" }}>
-                        <div>• 5 Kilos of Italian Cured Meats</div>
-                        <div>• 5 Types of Imported Cheeses</div>
-                        <div>• 5 Big Seasonal Fruit Platters</div>
-                        <div>• Hungarian Sausage Platter & Grazing Cups</div>
-                        <div>• Nachos Station with Dips</div>
-                        <div>• Artisan Breadbasket with Jam and Bread</div>
-                        <div>• Wafers, Saltin Crackers, Pretzels & Fresh Veggie Sticks</div>
-                        <div>• Mix Assorted Nuts, Dried Fruits, Olives & Cocktail Onions</div>
+                        {(quotation.packageInclusions || quotation.inclusions || [
+                          "5 Kilos of Italian Cured Meats",
+                          "5 Types of Imported Cheeses",
+                          "5 Big Seasonal Fruit Platters",
+                          "Hungarian Sausage Platter & Grazing Cups",
+                          "Nachos Station with Dips",
+                          "Artisan Breadbasket with Jam and Bread",
+                          "Wafers, Saltin Crackers, Pretzels & Fresh Veggie Sticks",
+                          "Mix Assorted Nuts, Dried Fruits, Olives & Cocktail Onions"
+                        ]).map((inc, i) => (
+                          <div key={i}>• {inc}</div>
+                        ))}
                       </div>
                     </div>
 
                     {quotation.selectedCanapes?.length > 0 && (
                       <div>
                         <div style={{ fontWeight: 800, color: "#0f172a", textTransform: "uppercase", letterSpacing: "0.03em", fontSize: "0.82rem", marginBottom: "2px" }}>
-                          🥪 5 Canapés (Curated):
+                          🥪 {quotation.selectedCanapes.length} Canapés (Curated):
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", gap: "2px", paddingLeft: "0.2rem" }}>
                           {quotation.selectedCanapes.map((canape, i) => {
@@ -898,7 +984,7 @@ Accepted Payment Channels:
                     {quotation.selectedSliders?.length > 0 && (
                       <div>
                         <div style={{ fontWeight: 800, color: "#0f172a", textTransform: "uppercase", letterSpacing: "0.03em", fontSize: "0.82rem", marginBottom: "2px" }}>
-                          🍔 4 Sliders (Curated):
+                          🍔 {quotation.selectedSliders.length} Sliders (Curated):
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", gap: "2px", paddingLeft: "0.2rem" }}>
                           {quotation.selectedSliders.map((slider, i) => {
@@ -936,7 +1022,7 @@ Accepted Payment Channels:
                   </div>
                 </td>
                 <td style={{ textAlign: "center", verticalAlign: "top", paddingTop: "0.9rem" }}>
-                  <strong>{quotation.paxRange || (quotation.packageName?.includes("Premium") ? "150-200 PAX" : "100-150 PAX")}</strong>
+                  <strong>{quotation.paxRange || (quotation.packageName?.includes("Premium") ? "150-200 PAX" : quotation.packageName?.includes("Party") ? "50-100 PAX" : quotation.packageName?.includes("Petite") ? "30-50 PAX" : "100-150 PAX")}</strong>
                   <div style={{ fontSize: "0.72rem", color: "#64748b" }}>Flat Package</div>
                 </td>
                 <td className="text-right" style={{ verticalAlign: "top", paddingTop: "0.9rem" }}>
@@ -957,6 +1043,26 @@ Accepted Payment Channels:
                     {isFoodTray && (
                       <span style={{ fontSize: "0.72rem", background: "#fffbeb", color: "#b45309", border: "1px solid #fde68a", padding: "2px 8px", borderRadius: "12px", fontWeight: 700 }}>
                         🍱 Party Food Tray
+                      </span>
+                    )}
+                    {isPackedMeal && (
+                      <span style={{ fontSize: "0.72rem", background: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", padding: "2px 8px", borderRadius: "12px", fontWeight: 700 }}>
+                        🍱 Packed Meal / Bento Box
+                      </span>
+                    )}
+                    {isPackedMeal && quotation.selectedPackedMealSet && quotation.selectedPackedMealSet !== "custom" && (
+                      <span style={{ fontSize: "0.72rem", background: "#ffedd5", color: "#9a3412", border: "1px solid #fdba74", padding: "2px 8px", borderRadius: "12px", fontWeight: 700 }}>
+                        ⭐ Chef Pre-Set: {quotation.selectedPackedMealSet}
+                      </span>
+                    )}
+                    {isPromo && (
+                      <span style={{ fontSize: "0.72rem", background: "#fee2e2", color: "#991b1b", border: "1px solid #fecaca", padding: "2px 8px", borderRadius: "12px", fontWeight: 700 }}>
+                        🎄 Bermonths Holiday Promo
+                      </span>
+                    )}
+                    {isPromo && (
+                      <span style={{ fontSize: "0.72rem", background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", padding: "2px 8px", borderRadius: "12px", fontWeight: 700 }}>
+                        📅 Valid: {quotation.promoStartDate || "Sept 30"} – {quotation.promoEndDate || "Dec 31"}
                       </span>
                     )}
                   </div>
@@ -1011,6 +1117,18 @@ Accepted Payment Channels:
                             </div>
                           )}
                         </div>
+                      </div>
+                    )}
+
+                    {/* Category: Hot Soup (for Bermonths Promo or soup inclusion) */}
+                    {quotation.selectedSoup && (
+                      <div>
+                        <span style={{ fontWeight: 800, color: "#0f172a", textTransform: "uppercase", letterSpacing: "0.03em", fontSize: "0.82rem" }}>
+                          HOT SOUP:{" "}
+                        </span>
+                        <span style={{ fontStyle: "italic", color: "#334155" }}>
+                          {quotation.selectedSoup} (Included)
+                        </span>
                       </div>
                     )}
 
@@ -1079,6 +1197,34 @@ Accepted Payment Channels:
                         </div>
                       </div>
                     ) : null}
+
+                    {/* Bermonths Promo: Mini Grazing Table Inclusions */}
+                    {(isPromo || quotation.hasMiniGrazingTable) && (
+                      <div style={{ marginTop: "8px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "6px", padding: "8px 10px" }}>
+                        <div style={{ fontWeight: 800, color: "#991b1b", textTransform: "uppercase", letterSpacing: "0.03em", fontSize: "0.8rem", marginBottom: "3px" }}>
+                          🧀 Mini Grazing Table (Included in Promo):
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "2px", fontSize: "0.78rem", color: "#7f1d1d", paddingLeft: "0.2rem" }}>
+                          <div>• 1 BIG Charcuterie Platter with Salami or Coppa Ham</div>
+                          <div>• 1 Big Fruit Platter (Fresh Seasonal Fruits)</div>
+                          <div>• DIY Nachos with Cheese Sauce Fountain</div>
+                          <div>• Canapés: Truffle Egg Bites, Tuna Salad Bites, Chicken Ala King Bites, Hungarian Sausage, Cheese & Olives Skewers</div>
+                          <div>• Mini Charcuterie Cups</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Bermonths Promo: Whole Lechon for 100 PAX */}
+                    {(quotation.hasLechon || quotation.packageId === "promo_bermonths_100" || quotation.packageName?.includes("100")) && (
+                      <div style={{ marginTop: "6px", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "6px", padding: "8px 10px" }}>
+                        <div style={{ fontWeight: 800, color: "#92400e", textTransform: "uppercase", letterSpacing: "0.03em", fontSize: "0.82rem" }}>
+                          🐷 1 Whole Lechon (50kg Live Weight) — Included in Promo
+                        </div>
+                        <div style={{ fontSize: "0.75rem", color: "#b45309", fontStyle: "italic", marginTop: "2px" }}>
+                          Full whole roasted crisp lechon with specialty liver gravy dip (Guaranteed 50kg live weight)
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </td>
                 <td style={{ textAlign: "center", verticalAlign: "top", paddingTop: "0.9rem" }}>
@@ -1157,34 +1303,250 @@ Accepted Payment Channels:
           </tbody>
         </table>
 
-        {/* Financial Totals */}
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1.5rem" }}>
-          <div style={{ width: "340px", display: "flex", flexDirection: "column", gap: "0.4rem", fontSize: "0.85rem" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", color: "#475569" }}>
-              <span>Subtotal:</span>
-              <span style={{ fontFamily: "monospace", fontWeight: 600 }}>₱{quotation.subtotal?.toLocaleString()}</span>
+        {/* Official Note / Remarks & Accounting Breakdown Layout (Matching Palatable Order Sheet Template) */}
+        <div style={{
+          border: "1.5px solid #0f172a",
+          borderRadius: "4px",
+          marginBottom: "1.5rem",
+          overflow: "hidden",
+          background: "#ffffff"
+        }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1.15fr 1fr", borderBottom: "1.5px solid #0f172a" }}>
+            {/* Left Column: NOTE / REMARKS Box */}
+            <div style={{ borderRight: "1.5px solid #0f172a", display: "flex", flexDirection: "column" }}>
+              <div style={{
+                background: "#f1f5f9",
+                borderBottom: "1px solid #cbd5e1",
+                padding: "6px 12px",
+                fontWeight: 900,
+                fontSize: "0.78rem",
+                letterSpacing: "0.06em",
+                color: "#0f172a",
+                textTransform: "uppercase",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center"
+              }}>
+                <span>NOTE /REMARKS:</span>
+                {!isEditingNotes && (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingNotes(true)}
+                    className="no-print"
+                    style={{
+                      fontSize: "0.65rem",
+                      color: "#0284c7",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      textDecoration: "underline",
+                      fontWeight: 700
+                    }}
+                  >
+                    ✏️ Edit
+                  </button>
+                )}
+              </div>
+              <div style={{ padding: "10px 12px", flex: 1, minHeight: "140px", display: "flex", flexDirection: "column" }}>
+                {isEditingNotes ? (
+                  <div className="no-print" style={{ marginBottom: "6px" }}>
+                    <textarea
+                      value={quotationNotes}
+                      onChange={(e) => {
+                        setQuotationNotes(e.target.value);
+                        quotation.notes = e.target.value;
+                      }}
+                      rows={3}
+                      placeholder="e.g. FABRIC FOR SKIRTING - ARMY GREEN"
+                      style={{
+                        width: "100%",
+                        padding: "6px",
+                        fontSize: "0.82rem",
+                        fontWeight: 800,
+                        border: "1.5px solid #0284c7",
+                        borderRadius: "4px",
+                        fontFamily: "monospace"
+                      }}
+                    />
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: "6px", marginTop: "4px" }}>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingNotes(false)}
+                        style={{
+                          fontSize: "0.7rem",
+                          padding: "2px 8px",
+                          background: "#0284c7",
+                          color: "#ffffff",
+                          borderRadius: "4px",
+                          border: "none",
+                          cursor: "pointer",
+                          fontWeight: 700
+                        }}
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div
+                  onClick={() => setIsEditingNotes(true)}
+                  title="Click to edit Note/Remarks"
+                  style={{
+                    fontSize: "0.85rem",
+                    fontWeight: 800,
+                    color: quotationNotes ? "#0f172a" : "#64748b",
+                    fontFamily: "monospace",
+                    whiteSpace: "pre-wrap",
+                    lineHeight: 1.5,
+                    cursor: "pointer",
+                    textTransform: "uppercase"
+                  }}
+                >
+                  {quotationNotes || "FABRIC FOR SKIRTING - ARMY GREEN"}
+                </div>
+
+                {/* Spreadsheet-like ruled lines to match official billing pad */}
+                <div style={{ marginTop: "auto", paddingTop: "12px", display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <div style={{ borderBottom: "1px solid #e2e8f0", height: "1px" }} />
+                  <div style={{ borderBottom: "1px solid #e2e8f0", height: "1px" }} />
+                  <div style={{ borderBottom: "1px solid #e2e8f0", height: "1px" }} />
+                </div>
+              </div>
+
+              {/* Checked by signature footer on bottom left */}
+              <div style={{
+                borderTop: "1px solid #cbd5e1",
+                padding: "6px 12px",
+                background: "#f8fafc",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                fontSize: "0.72rem",
+                color: "#475569"
+              }}>
+                <span>Checked by: _____________________</span>
+                <span style={{ fontStyle: "italic", fontSize: "0.68rem" }}>Banquet Sales & Logistics</span>
+              </div>
             </div>
 
-            {quotation.serviceCharge > 0 && (
-              <div style={{ display: "flex", justifyContent: "space-between", color: "#475569" }}>
-                <span>Service Charge ({quotation.serviceChargePercent}%):</span>
-                <span style={{ fontFamily: "monospace" }}>₱{quotation.serviceCharge?.toLocaleString()}</span>
+            {/* Right Column: Accounting Summary Table */}
+            <div style={{ display: "flex", flexDirection: "column", fontSize: "0.78rem" }}>
+              {/* Row 1: Transportation */}
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 12px", borderBottom: "1px solid #e2e8f0", color: "#334155" }}>
+                <span style={{ fontWeight: 800, textTransform: "uppercase" }}>TRANSPORTATION:</span>
+                <span style={{ fontFamily: "monospace", fontWeight: 700 }}>
+                  ₱{(quotation.deliveryFee || 0).toLocaleString()}
+                </span>
               </div>
-            )}
 
-            {quotation.discountAmount > 0 && (
-              <div style={{ display: "flex", justifyContent: "space-between", color: "#16a34a" }}>
-                <span>Discount / Special Promo:</span>
-                <span style={{ fontFamily: "monospace" }}>-₱{quotation.discountAmount?.toLocaleString()}</span>
+              {/* Row 2: Subtotal */}
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 12px", borderBottom: "1px solid #e2e8f0", color: "#334155" }}>
+                <span style={{ fontWeight: 800, textTransform: "uppercase" }}>SUBTOTAL:</span>
+                <span style={{ fontFamily: "monospace", fontWeight: 700 }}>
+                  ₱{quotation.subtotal?.toLocaleString()}
+                </span>
               </div>
-            )}
 
-            <div style={{ height: "1px", background: "#cbd5e1", margin: "4px 0" }} />
+              {/* Service Charge (if any) */}
+              {quotation.serviceCharge > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 12px", borderBottom: "1px solid #e2e8f0", color: "#334155" }}>
+                  <span style={{ fontWeight: 800, textTransform: "uppercase" }}>SERVICE CHARGE ({quotation.serviceChargePercent}%):</span>
+                  <span style={{ fontFamily: "monospace" }}>₱{quotation.serviceCharge?.toLocaleString()}</span>
+                </div>
+              )}
 
-            <div style={{ display: "flex", justifyContent: "space-between", background: "#fef3c7", padding: "8px 12px", borderRadius: "8px", border: "1px solid #fde68a", fontSize: "1.15rem", fontWeight: 800, color: "#92400e", marginTop: "4px" }}>
-              <span>BALANCE GRAND TOTAL:</span>
-              <span style={{ fontFamily: "monospace" }}>₱{cleanGrandTotal?.toLocaleString()}</span>
+              {/* Discount (if any) */}
+              {quotation.discountAmount > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 12px", borderBottom: "1px solid #e2e8f0", color: "#16a34a" }}>
+                  <span style={{ fontWeight: 800, textTransform: "uppercase" }}>DISCOUNT / PROMO:</span>
+                  <span style={{ fontFamily: "monospace", fontWeight: 700 }}>-₱{quotation.discountAmount?.toLocaleString()}</span>
+                </div>
+              )}
+
+              {/* Row 3: Blocking Fee (Deposit) */}
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 12px", borderBottom: "1px solid #e2e8f0", color: "#334155" }}>
+                <span style={{ fontWeight: 800, textTransform: "uppercase" }}>
+                  BLOCKING FEE ({quotation.depositAmount > 0 ? "PAID" : "50% RESERVATION"}):
+                </span>
+                <span style={{ fontFamily: "monospace", fontWeight: 700, color: quotation.depositAmount > 0 ? "#059669" : "#334155" }}>
+                  ₱{(quotation.depositAmount > 0 ? Number(quotation.depositAmount) : Math.round(cleanGrandTotal * 0.5)).toLocaleString()}
+                </span>
+              </div>
+
+              {/* Row 4: Additional Payment (if any paid) */}
+              {quotation.finalPaymentAmount > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 12px", borderBottom: "1px solid #e2e8f0", color: "#334155" }}>
+                  <span style={{ fontWeight: 800, textTransform: "uppercase" }}>ADDITIONAL PAYMENT:</span>
+                  <span style={{ fontFamily: "monospace", fontWeight: 700, color: "#059669" }}>
+                    ₱{Number(quotation.finalPaymentAmount).toLocaleString()}
+                  </span>
+                </div>
+              )}
+
+              {/* Row 5: Mode of Payment */}
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 12px", borderBottom: "1px solid #e2e8f0", color: "#475569" }}>
+                <span style={{ fontWeight: 800, textTransform: "uppercase" }}>MODE OF PAYMENT:</span>
+                <span style={{ fontWeight: 700, color: "#0f172a" }}>
+                  {quotation.depositPaymentMethod || "GCash / Bank Transfer"}
+                </span>
+              </div>
+
+              {/* Row 6: Account Name */}
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 12px", borderBottom: "1px solid #e2e8f0", color: "#475569" }}>
+                <span style={{ fontWeight: 800, textTransform: "uppercase" }}>ACCOUNT NAME:</span>
+                <span style={{ fontWeight: 700, color: "#0f172a" }}>
+                  {boundAccountName}
+                </span>
+              </div>
+
+              {/* Row 7: Account Number */}
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 12px", borderBottom: "1px solid #e2e8f0", color: "#475569" }}>
+                <span style={{ fontWeight: 800, textTransform: "uppercase" }}>ACCOUNT NUMBER:</span>
+                <span style={{ fontFamily: "monospace", fontWeight: 700, color: "#0f172a" }}>
+                  {bankDetails.gcash?.number || boundAccountNumber}
+                </span>
+              </div>
+
+              {/* Row 8: Reference Number */}
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 12px", borderBottom: "1px solid #e2e8f0", color: "#475569" }}>
+                <span style={{ fontWeight: 800, textTransform: "uppercase" }}>REFERENCE NUMBER:</span>
+                <span style={{ fontFamily: "monospace", fontWeight: 700, color: quotation.depositReference ? "#0284c7" : "#64748b" }}>
+                  {quotation.depositReference || quotation.id}
+                </span>
+              </div>
+
+              {/* Row 9: Balance Due */}
+              <div style={{
+                display: "flex",
+                justifyContent: "space-between",
+                padding: "8px 12px",
+                background: quotation.isFullyPaid ? "#f0fdf4" : "#fef3c7",
+                color: quotation.isFullyPaid ? "#166534" : "#92400e",
+                fontWeight: 900,
+                fontSize: "1.05rem"
+              }}>
+                <span style={{ textTransform: "uppercase" }}>BALANCE DUE:</span>
+                <span style={{ fontFamily: "monospace" }}>
+                  ₱{(quotation.balanceDue !== undefined ? quotation.balanceDue : (quotation.isFullyPaid ? 0 : Math.max(0, cleanGrandTotal - (quotation.depositAmount || 0)))).toLocaleString()}
+                </span>
+              </div>
             </div>
+          </div>
+
+          {/* Full Width Footer across bottom: THANK YOU SO MUCH FOR YOUR BUSINESS */}
+          <div style={{
+            padding: "9px 12px",
+            background: "#ffffff",
+            textAlign: "center",
+            fontWeight: 900,
+            fontSize: "0.95rem",
+            letterSpacing: "0.22em",
+            color: "#0f172a",
+            textTransform: "uppercase",
+            fontFamily: "var(--font-serif, Georgia, serif)"
+          }}>
+            THANK YOU SO MUCH FOR YOUR BUSINESS
           </div>
         </div>
 

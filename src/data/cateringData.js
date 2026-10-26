@@ -345,6 +345,75 @@ export const FOOD_TRAY_PACKAGES = [
 
 export const PICA_PICA_PACKAGES = [
   {
+    id: "pica_pica_petite",
+    serviceType: "pica_pica",
+    name: "Petite Package (Pica Pica / Grazing)",
+    subtitle: "3 Kilos Cured Meats, 3 Cheeses, 3 Fruit Platters, 3 Canapés & 2 Sliders",
+    badge: "30-50 PAX • ₱25,000",
+    popular: false,
+    price: 25000,
+    pricePerPax: 500,
+    minPax: 30,
+    maxPax: 50,
+    paxRange: "Good for 30-50 PAX",
+    picaAllowances: {
+      sliders: 2,
+      canapes: 3,
+      fingerFood: 0,
+      miniDesserts: 0,
+      drinks: 0
+    },
+    grazingAllowances: {
+      sliders: 2,
+      canapes: 3
+    },
+    inclusions: [
+      "3 Kilos of Italian Cured Meats",
+      "3 Types of Imported Cheeses",
+      "3 Big Seasonal Fruit Platter",
+      "3 Canapés, 2 Sliders",
+      "Mix Assorted Nuts and Dried Fruits",
+      "Wafers, Saltin Crackers, Bretzels",
+      "Artisan Breadbasket with Jam and Bread"
+    ]
+  },
+  {
+    id: "pica_pica_party",
+    serviceType: "pica_pica",
+    name: "Party Package (Pica Pica / Grazing)",
+    subtitle: "4 Kilos Cured Meats, 4 Cheeses, 4 Fruit Platters, 4 Canapés, 3 Sliders & Sausage Platter",
+    badge: "50-100 PAX • ₱45,000",
+    popular: true,
+    price: 45000,
+    pricePerPax: 450,
+    minPax: 50,
+    maxPax: 100,
+    paxRange: "Good for 50-100 PAX",
+    picaAllowances: {
+      sliders: 3,
+      canapes: 4,
+      fingerFood: 0,
+      miniDesserts: 0,
+      drinks: 0
+    },
+    grazingAllowances: {
+      sliders: 3,
+      canapes: 4
+    },
+    inclusions: [
+      "4 Kilos of Italian Cured Meats",
+      "4 Types of Imported Cheeses",
+      "4 Big Seasonal Fruit Platter",
+      "4 Canapés, 3 Sliders",
+      "Mix Assorted Nuts and Dried Fruits",
+      "Wafers, Saltin Crackers, Bretzels",
+      "Vegetables Sticks",
+      "Olives, Cocktail Onions",
+      "Hungarian Sausage Platter",
+      "Artisan Breadbasket with Jam and Bread"
+    ]
+  },
+  {
     id: "pica_pica_opt1",
     serviceType: "pica_pica",
     name: "Option 1 (Pica Pica Station)",
@@ -433,6 +502,61 @@ export const PICA_PICA_PACKAGES = [
 
 export const GRAZING_TABLE_PACKAGES = [
   {
+    id: "grazing_petite",
+    serviceType: "grazing_table",
+    name: "Petite Package (Grazing Table)",
+    subtitle: "3 Kilos Cured Meats, 3 Cheeses, 3 Fruit Platters, 3 Canapés & 2 Sliders",
+    badge: "30-50 PAX • ₱25,000",
+    popular: false,
+    price: 25000,
+    pricePerPax: 500,
+    minPax: 30,
+    maxPax: 50,
+    paxRange: "Good for 30-50 PAX",
+    grazingAllowances: {
+      canapes: 3,
+      sliders: 2
+    },
+    inclusions: [
+      "3 Kilos of Italian Cured Meats",
+      "3 Types of Imported Cheeses",
+      "3 Big Seasonal Fruit Platter",
+      "3 Canapés, 2 Sliders",
+      "Mix Assorted Nuts and Dried Fruits",
+      "Wafers, Saltin Crackers, Bretzels",
+      "Artisan Breadbasket with Jam and Bread"
+    ]
+  },
+  {
+    id: "grazing_party",
+    serviceType: "grazing_table",
+    name: "Party Package (Grazing Table)",
+    subtitle: "4 Kilos Cured Meats, 4 Cheeses, 4 Fruit Platters, 4 Canapés, 3 Sliders & Sausage Platter",
+    badge: "50-100 PAX • ₱45,000",
+    popular: true,
+    price: 45000,
+    pricePerPax: 450,
+    minPax: 50,
+    maxPax: 100,
+    paxRange: "Good for 50-100 PAX",
+    grazingAllowances: {
+      canapes: 4,
+      sliders: 3
+    },
+    inclusions: [
+      "4 Kilos of Italian Cured Meats",
+      "4 Types of Imported Cheeses",
+      "4 Big Seasonal Fruit Platter",
+      "4 Canapés, 3 Sliders",
+      "Mix Assorted Nuts and Dried Fruits",
+      "Wafers, Saltin Crackers, Bretzels",
+      "Vegetables Sticks",
+      "Olives, Cocktail Onions",
+      "Hungarian Sausage Platter",
+      "Artisan Breadbasket with Jam and Bread"
+    ]
+  },
+  {
     id: "grazing_deluxe",
     serviceType: "grazing_table",
     name: "Deluxe Grazing Table Package",
@@ -500,17 +624,598 @@ export const GRAZING_TABLE_PACKAGES = [
   }
 ];
 
+export const PACKED_MEAL_PACKAGES = [
+  {
+    id: "pm_1",
+    serviceType: "packed_meal",
+    code: "PM 1",
+    name: "PM 1 Packed Meal (Bento)",
+    category: "Packed Meals",
+    subtitle: "1 Main Dish, 1 Side Dish, Plain or Garlic Rice, Soda",
+    badge: "Min 50 PAX • ₱175",
+    popular: false,
+    pricePerPax: 175,
+    minPax: 50,
+    mainDishesCount: 1,
+    sideDishes: { regular: 1, special: 0 },
+    desserts: { regular: 0, special: 0 },
+    riceOptions: ["Plain Rice", "Garlic Rice"],
+    drinkOptions: ["Soda (Coke / Sprite / Royal)"],
+    hasDessertCup: false,
+    hasBottledWater: false,
+    courses: {
+      beef: 0,
+      pork: 0,
+      chicken: 1,
+      sideRegular: 1,
+      sideSpecial: 0,
+      dessertRegular: 0,
+      dessertSpecial: 0,
+      riceOrSoup: 1,
+      drinks: 1
+    },
+    inclusions: [
+      "1 Main Dish (Choice of Fried Chicken, Breaded Pork Chop, or Fish Fillet)",
+      "1 Side Dish (Tuna Macaroni Salad, Buttered Vegetables, or Sotanghon Guisado)",
+      "Plain Rice or Garlic Rice",
+      "Soda (Assorted Canned / Bottle)",
+      "Food-grade compartmentalized bento box packaging",
+      "Individually sealed cutlery pack (spoon, fork, napkin, toothpick)",
+      "Minimum order guarantee: 50 PAX"
+    ],
+    comboOptions: [
+      {
+        code: "PM1A",
+        name: "PM 1 - Option A",
+        main: "Palatable Fried Chicken",
+        side: "Tuna Macaroni Salad",
+        rice: "Plain Rice or Garlic Rice",
+        drinks: "Soda",
+        items: ["Fried Chicken", "Tuna Macaroni Salad", "Plain Rice or Garlic Rice", "Soda"]
+      },
+      {
+        code: "PM1B",
+        name: "PM 1 - Option B",
+        main: "Crispy Pork Chop",
+        side: "Mixed Buttered Vegetables",
+        rice: "Plain Rice or Garlic Rice",
+        drinks: "Soda",
+        items: ["Breaded Pork Chop", "Buttered Vegetables", "Plain Rice or Garlic Rice", "Soda"]
+      },
+      {
+        code: "PM1C",
+        name: "PM 1 - Option C",
+        main: "Fish Fillet (Cream Dory) in Garlic Cream Dip",
+        side: "Sotanghon Guisado",
+        rice: "Plain Rice or Garlic Rice",
+        drinks: "Soda",
+        items: ["Fish Fillet", "Sotanghon Guisado", "Plain Rice or Garlic Rice", "Soda"]
+      }
+    ]
+  },
+  {
+    id: "pm_2",
+    serviceType: "packed_meal",
+    code: "PM 2",
+    name: "PM 2 Packed Meal (Bento)",
+    category: "Packed Meals",
+    subtitle: "1 Main Dish, 2 Side Dishes, Plain or Garlic Rice, Soda",
+    badge: "Min 50 PAX • ₱199",
+    popular: true,
+    pricePerPax: 199,
+    minPax: 50,
+    mainDishesCount: 1,
+    sideDishes: { regular: 2, special: 0 },
+    desserts: { regular: 0, special: 0 },
+    riceOptions: ["Plain Rice", "Garlic Rice"],
+    drinkOptions: ["Soda (Coke / Sprite / Royal)"],
+    hasDessertCup: false,
+    hasBottledWater: false,
+    courses: {
+      beef: 0,
+      pork: 0,
+      chicken: 1,
+      sideRegular: 2,
+      sideSpecial: 0,
+      dessertRegular: 0,
+      dessertSpecial: 0,
+      riceOrSoup: 1,
+      drinks: 1
+    },
+    inclusions: [
+      "1 Main Dish (Crispy Chicken/Pork Ala King, Curry Fillet, or Sweet & Sour / BBQ)",
+      "2 Side Dishes (Baked Penne, Sotanghon, Lumpiang Gulay, or Lumpiang Shanghai)",
+      "Plain Rice or Garlic Rice",
+      "Soda (Assorted Canned / Bottle)",
+      "Food-grade compartmentalized bento box packaging",
+      "Individually sealed cutlery pack (spoon, fork, napkin, toothpick)",
+      "Minimum order guarantee: 50 PAX"
+    ],
+    comboOptions: [
+      {
+        code: "PM2A",
+        name: "PM 2 - Option A",
+        main: "Crispy Chicken Ala King",
+        side: "Baked Penne Pasta",
+        side2: "Lumpiang Gulay",
+        rice: "Plain Rice or Garlic Rice",
+        drinks: "Soda",
+        items: ["Crispy Chicken or Pork Ala King", "Baked Penne Pasta", "Lumpiang Gulay", "Plain Rice or Garlic Rice", "Soda"]
+      },
+      {
+        code: "PM2B",
+        name: "PM 2 - Option B",
+        main: "Chicken Curry",
+        side: "Mixed Buttered Vegetables",
+        side2: "Lumpiang Shanghai",
+        rice: "Plain Rice or Garlic Rice",
+        drinks: "Soda",
+        items: ["Breaded Chicken or Pork Fillet Curry Sauce", "Sautéed Vegetables", "Lumpiang Shanghai", "Plain Rice or Garlic Rice", "Soda"]
+      },
+      {
+        code: "PM2C",
+        name: "PM 2 - Option C",
+        main: "Pork BBQ",
+        side: "Sotanghon Guisado",
+        side2: "Lumpiang Shanghai",
+        rice: "Plain Rice or Garlic Rice",
+        drinks: "Soda",
+        items: ["Sweet & Sour Fish or Pork BBQ w/ Atchara", "Sotanghon Guisado", "Lumpiang Shanghai", "Plain Rice or Garlic Rice", "Soda"]
+      }
+    ]
+  },
+  {
+    id: "pm_3",
+    serviceType: "packed_meal",
+    code: "PM 3",
+    name: "PM 3 Packed Meal Deluxe (Bento)",
+    category: "Packed Meal Deluxe",
+    subtitle: "2 Main Dishes, 1 Side Dish, Plain / Garlic / Java Rice, Soda",
+    badge: "Deluxe • Min 50 PAX • ₱299",
+    popular: true,
+    pricePerPax: 299,
+    minPax: 50,
+    mainDishesCount: 2,
+    sideDishes: { regular: 1, special: 0 },
+    desserts: { regular: 0, special: 0 },
+    riceOptions: ["Plain Rice", "Garlic Rice", "Java Rice"],
+    drinkOptions: ["Soda (Coke / Sprite / Royal)"],
+    hasDessertCup: false,
+    hasBottledWater: false,
+    courses: {
+      beef: 1,
+      pork: 0,
+      chicken: 1,
+      sideRegular: 1,
+      sideSpecial: 0,
+      dessertRegular: 0,
+      dessertSpecial: 0,
+      riceOrSoup: 1,
+      drinks: 1
+    },
+    inclusions: [
+      "2 Main Dishes (Beef Stroganoff, Chicken Fillet, Cordon Bleu, BBQ, Fish Fillet)",
+      "1 Side Dish (Mashed Potatoes, Sotanghon Guisado, or Pancit Canton)",
+      "Plain Rice / Garlic Rice / Java Rice",
+      "Soda (Assorted Canned / Bottle)",
+      "Deluxe compartmentalized bento box packaging",
+      "Individually sealed cutlery pack (spoon, fork, napkin, toothpick)",
+      "Minimum order guarantee: 50 PAX"
+    ],
+    comboOptions: [
+      {
+        code: "PM3A",
+        name: "PM 3 - Option A",
+        main: "Beef Stroganoff",
+        main2: "Herb Roasted Chicken",
+        side: "Creamy Mashed Potatoes in Mushroom Gravy",
+        rice: "Plain Rice / Garlic Rice / Java Rice",
+        drinks: "Soda",
+        items: ["Beef Stroganof", "Chicken Fillet", "Mashed Potatoes", "Plain Rice / Garlic Rice / Java Rice", "Soda"]
+      },
+      {
+        code: "PM3B",
+        name: "PM 3 - Option B",
+        main: "Pork BBQ",
+        main2: "Chicken Cordon Bleu",
+        side: "Sotanghon Guisado",
+        rice: "Plain Rice / Garlic Rice / Java Rice",
+        drinks: "Soda",
+        items: ["Pork BBQ", "Chicken Cordon Bleu", "Sotanghon Guisado", "Plain Rice / Garlic Rice / Java Rice", "Soda"]
+      },
+      {
+        code: "PM3C",
+        name: "PM 3 - Option C",
+        main: "Fish Fillet (Cream Dory) Sweet and Sour",
+        main2: "Chicken BBQ",
+        side: "Pancit Guisado",
+        rice: "Plain Rice / Garlic Rice / Java Rice",
+        drinks: "Soda",
+        items: ["Sweet and Sour Fish Fillet", "Chicken BBQ", "Pancit Canton Guisado", "Plain Rice / Garlic Rice / Java Rice", "Soda"]
+      }
+    ]
+  },
+  {
+    id: "pm_4",
+    serviceType: "packed_meal",
+    code: "PM 4",
+    name: "PM 4 Packed Meal Deluxe (Bento)",
+    category: "Packed Meal Deluxe",
+    subtitle: "1 Main Dish, 2 Side Dishes, 1 Dessert Cup, Plain / Garlic / Java Rice, Soda",
+    badge: "Deluxe • Min 50 PAX • ₱250",
+    popular: false,
+    pricePerPax: 250,
+    minPax: 50,
+    mainDishesCount: 1,
+    sideDishes: { regular: 2, special: 0 },
+    desserts: { regular: 1, special: 0 },
+    riceOptions: ["Plain Rice", "Garlic Rice", "Java Rice"],
+    drinkOptions: ["Soda (Coke / Sprite / Royal)"],
+    hasDessertCup: true,
+    hasBottledWater: false,
+    courses: {
+      beef: 1,
+      pork: 0,
+      chicken: 0,
+      sideRegular: 2,
+      sideSpecial: 0,
+      dessertRegular: 1,
+      dessertSpecial: 0,
+      riceOrSoup: 1,
+      drinks: 1
+    },
+    inclusions: [
+      "1 Main Dish (Beef with Broccoli, Pork/Chicken Estofado, or Beef Bakareta)",
+      "2 Side Dishes (Spaghetti/Pesto, Shanghai, Chopsuey, Fish Tofu, or Croquettes)",
+      "1 Chilled Dessert Cup (Creamy Fruit Salad, Mango Tapioca, Strawberry Short Cake)",
+      "Plain Rice / Garlic Rice / Java Rice",
+      "Soda (Assorted Canned / Bottle)",
+      "Deluxe compartmentalized bento box packaging",
+      "Individually sealed cutlery pack (spoon, fork, napkin, toothpick)",
+      "Minimum order guarantee: 50 PAX"
+    ],
+    comboOptions: [
+      {
+        code: "PM4A",
+        name: "PM 4 - Option A",
+        main: "Beef with Broccoli",
+        side: "Creamy Spaghetti",
+        side2: "Lumpiang Shanghai",
+        dessert: "Fruit Salad",
+        rice: "Plain Rice / Garlic Rice / Java Rice",
+        drinks: "Soda",
+        items: ["Beef with Broccoli", "Creamy Spaghetti or Tuna Pesto", "Lumpiang Shanghai", "Creamy Fruit Salad", "Plain Rice / Garlic Rice / Java Rice", "Soda"]
+      },
+      {
+        code: "PM4B",
+        name: "PM 4 - Option B",
+        main: "Pork Estofado",
+        side: "Chopsuey",
+        side2: "Fish Tofu",
+        dessert: "Mango Tapioca",
+        rice: "Plain Rice / Garlic Rice / Java Rice",
+        drinks: "Soda",
+        items: ["Pork or Chicken Estofado", "Chopsuey", "Fish Tofu", "Mango Tapioca", "Plain Rice / Garlic Rice / Java Rice", "Soda"]
+      },
+      {
+        code: "PM4C",
+        name: "PM 4 - Option C",
+        main: "Bakareta",
+        side: "Sotanghon Guisado",
+        side2: "Potato Croquettes",
+        dessert: "Strawberry Short Cake",
+        rice: "Plain Rice / Garlic Rice / Java Rice",
+        drinks: "Soda",
+        items: ["Beef Bakareta", "Sotanghon Guisado", "Potato Croquettes", "Strawberry Short Cake", "Plain Rice / Garlic Rice / Java Rice", "Soda"]
+      }
+    ]
+  },
+  {
+    id: "pm_5",
+    serviceType: "packed_meal",
+    code: "PM 5",
+    name: "PM 5 Packed Meal Premium (Bento)",
+    category: "Packed Meal Premium",
+    subtitle: "2 Main Dishes, 1 Side Dish, 1 Dessert Cup, Rice, Soda/C2 & Bottled Water",
+    badge: "Premium • Min 50 PAX • ₱385",
+    popular: true,
+    pricePerPax: 385,
+    minPax: 50,
+    mainDishesCount: 2,
+    sideDishes: { regular: 1, special: 0 },
+    desserts: { regular: 1, special: 0 },
+    riceOptions: ["Plain Rice", "Garlic Rice", "Java Rice"],
+    drinkOptions: ["Soda or C2 Green Tea + Bottled Water"],
+    hasDessertCup: true,
+    hasBottledWater: true,
+    courses: {
+      beef: 1,
+      pork: 0,
+      chicken: 1,
+      sideRegular: 1,
+      sideSpecial: 0,
+      dessertRegular: 1,
+      dessertSpecial: 0,
+      riceOrSoup: 1,
+      drinks: 2
+    },
+    inclusions: [
+      "2 Main Dishes (Beef Stroganoff/Teriyaki, Bakareta/Cordon Bleu, Bangus/Tonkatsu)",
+      "1 Side Dish (Sautéed Vegetables, Penne Pasta or Tuna Pesto, Fresh Lumpia)",
+      "1 Chilled Dessert Cup (Mango Tapioca or Creamy Fruit Salad)",
+      "Plain Rice / Garlic Rice / Java Rice",
+      "Soda or C2 Green Tea",
+      "Bottled Water (Individual 350ml / 500ml)",
+      "Premium compartmentalized bento box packaging",
+      "Individually sealed cutlery pack (spoon, fork, napkin, toothpick)",
+      "Minimum order guarantee: 50 PAX"
+    ],
+    comboOptions: [
+      {
+        code: "PM5A",
+        name: "PM 5 - Option A",
+        main: "Beef Stroganoff",
+        main2: "Chicken Teriyaki",
+        side: "Mixed Buttered Vegetables",
+        dessert: "Mango Tapioca",
+        rice: "Plain Rice / Garlic Rice / Java Rice",
+        drinks: "Soda or C2 + Bottled Water",
+        items: ["Beef Stroganof", "Chicken Teriyaki", "Sautéed Vegetables", "Mango Tapioca", "Plain Rice / Garlic Rice / Java Rice", "Soda or C2", "Bottled Water"]
+      },
+      {
+        code: "PM5B",
+        name: "PM 5 - Option B",
+        main: "Bakareta",
+        main2: "Chicken Cordon Bleu",
+        side: "Baked Penne Pasta",
+        dessert: "Fruit Salad",
+        rice: "Plain Rice / Garlic Rice / Java Rice",
+        drinks: "Soda or C2 + Bottled Water",
+        items: ["Beef Bakareta", "Chicken Cordon Bleu", "Penne Pasta or Penne Tuna Pesto", "Creamy Fruit Salad", "Plain Rice / Garlic Rice / Java Rice", "Soda or C2", "Bottled Water"]
+      },
+      {
+        code: "PM5C",
+        name: "PM 5 - Option C",
+        main: "Rellenong Bangus",
+        main2: "Pork Tonkatsu",
+        side: "Fresh Lumpia",
+        dessert: "Fruit Salad",
+        rice: "Plain Rice / Garlic Rice / Java Rice",
+        drinks: "Soda or C2 + Bottled Water",
+        items: ["Rellenong Bangus", "Pork Tonkatsu", "Fresh Lumpia", "Creamy Fruit Salad", "Plain Rice / Garlic Rice / Java Rice", "Soda or C2", "Bottled Water"]
+      }
+    ]
+  },
+  {
+    id: "pm_6",
+    serviceType: "packed_meal",
+    code: "PM 6",
+    name: "PM 6 Packed Meal Premium (Bento)",
+    category: "Packed Meal Premium",
+    subtitle: "2 Main Dishes, 2 Side Dishes, 1 Dessert Cup, Rice, Soda/C2 & Bottled Water",
+    badge: "Premium • Min 50 PAX • ₱425",
+    popular: true,
+    pricePerPax: 425,
+    minPax: 50,
+    mainDishesCount: 2,
+    sideDishes: { regular: 2, special: 0 },
+    desserts: { regular: 1, special: 0 },
+    riceOptions: ["Plain Rice", "Garlic Rice", "Java Rice"],
+    drinkOptions: ["Soda or C2 Green Tea + Bottled Water"],
+    hasDessertCup: true,
+    hasBottledWater: true,
+    courses: {
+      beef: 1,
+      pork: 1,
+      chicken: 0,
+      sideRegular: 2,
+      sideSpecial: 0,
+      dessertRegular: 1,
+      dessertSpecial: 0,
+      riceOrSoup: 1,
+      drinks: 2
+    },
+    inclusions: [
+      "2 Main Dishes (Crispy Pork Kare-Kare/BBQ, Bakareta/Cordon Bleu, Hamonado/Chicken Fingers)",
+      "2 Side Dishes (Chopsuey, Shanghai, Penne Pasta, Fish Tofu, Meatballs)",
+      "1 Chilled Dessert Cup (Mango Tapioca, Strawberry Shortcake, Creamy Fruit Salad)",
+      "Plain Rice / Garlic Rice / Java Rice",
+      "Soda or C2 Green Tea",
+      "Bottled Water (Individual 350ml / 500ml)",
+      "Premium luxury compartmentalized bento box packaging",
+      "Individually sealed cutlery pack (spoon, fork, napkin, toothpick)",
+      "Minimum order guarantee: 50 PAX"
+    ],
+    comboOptions: [
+      {
+        code: "PM6A",
+        name: "PM 6 - Option A",
+        main: "Crispy Pork Karekare",
+        main2: "Chicken BBQ",
+        side: "Chopsuey",
+        side2: "Lumpiang Shanghai",
+        dessert: "Mango Tapioca",
+        rice: "Plain Rice / Garlic Rice / Java Rice",
+        drinks: "Soda or C2 + Bottled Water",
+        items: ["Crispy Pork Kare Kare", "Chicken BBQ", "Chopsuey", "Lumpiang Shanghai", "Mango Tapioca", "Plain Rice / Garlic Rice / Java Rice", "Soda or C2", "Bottled Water"]
+      },
+      {
+        code: "PM6B",
+        name: "PM 6 - Option B",
+        main: "Bakareta",
+        main2: "Chicken Cordon Bleu",
+        side: "Baked Penne Pasta",
+        side2: "Fish Tofu",
+        dessert: "Strawberry Short Cake",
+        rice: "Plain Rice / Garlic Rice / Java Rice",
+        drinks: "Soda or C2 + Bottled Water",
+        items: ["Beef Bakareta", "Chicken Cordon Bleu", "Penne Pasta or Penne Tuna Pesto", "Fish Tofu", "Strawberry Shortcake", "Plain Rice / Garlic Rice / Java Rice", "Soda or C2", "Bottled Water"]
+      },
+      {
+        code: "PM6C",
+        name: "PM 6 - Option C",
+        main: "Pork Hamonado",
+        main2: "Chicken Fingers",
+        side: "Chopsuey",
+        side2: "Meat Balls",
+        dessert: "Fruit Salad",
+        rice: "Plain Rice / Garlic Rice / Java Rice",
+        drinks: "Soda or C2 + Bottled Water",
+        items: ["Pork Hamonado", "Chicken Fingers", "Chopsuey", "Meat Balls", "Creamy Fruit Salad", "Plain Rice / Garlic Rice / Java Rice", "Soda or C2", "Bottled Water"]
+      }
+    ]
+  }
+];
+
+export const MINI_GRAZING_TABLE_INCLUSIONS = [
+  "1 BIG Charcuterie Platter with Salami or Coppa Ham",
+  "1 Big Fruit Platter",
+  "DIY Nachos with Cheese Sauce Fountain",
+  "Canapés: Truffle Egg Bites, Tuna Salad Bites, Chicken Ala King Bites, Hungarian Sausage, Cheese & Olives Skewers",
+  "Mini Charcuterie Cups"
+];
+
+export const BERMONTHS_PROMO_PACKAGES = [
+  {
+    id: "promo_bermonths",
+    serviceType: "promo",
+    code: "PROMO-BER-50",
+    name: "Bermonths Promo 50 PAX (Full Catering + Mini Grazing Table)",
+    category: "Holiday Promo",
+    subtitle: "Full Catering Starts for Only ₱35,000 Good for 50 PAX • Good Food, Brighter Gatherings ♡",
+    badge: "🎄 ₱35,000 for 50 PAX",
+    popular: true,
+    isPromo: true,
+    price: 35000,
+    pricePerPax: 700,
+    minPax: 50,
+    maxPax: 50,
+    paxRange: "Good for 50 PAX",
+    // Customizable promo date range (Flyer: Sept 30 to Dec 31)
+    promoStartDate: "2026-09-30",
+    promoEndDate: "2026-12-31",
+    promoRunsText: "SEPTEMBER 30 - DECEMBER 31",
+    promoIsActive: true,
+    mainDishesCount: 2,
+    sideDishes: { regular: 1, special: 0 },
+    desserts: { regular: 1, special: 0 },
+    hasSoup: true,
+    hasRice: true,
+    hasDrink: true,
+    hasMiniGrazingTable: true,
+    courses: {
+      beef: 1,
+      pork: 1,
+      chicken: 0,
+      sideRegular: 1,
+      sideSpecial: 0,
+      dessertRegular: 1,
+      dessertSpecial: 0,
+      soup: 1,
+      riceOrSoup: 1,
+      drinks: 1
+    },
+    inclusions: [
+      "2 Regular Mains (Choice of Beef, Pork, Chicken, or Seafood)",
+      "1 Regular Side (Pasta, Noodles, or Vegetable dish)",
+      "1 Regular Dessert (Filipino sweet desserts)",
+      "Hot Soup (Choice of Cream of Corn, Wild Mushroom, Roasted Pumpkin, Sotanghon Broth)",
+      "Steamed Pandan Jasmine Rice",
+      "Choice of: Chilled Soda or Fruit Juice",
+      "Mini Grazing Table (Charcuterie Platter, Fruit Platter, DIY Nachos w/ Cheese Fountain, Canapés & Mini Cups)",
+      "Rustic Buffet Table Set up with warming chafers & styling",
+      "Tables and chairs for guests with table skirting, chair cover, simple table center pc, fine dinning set up",
+      "Free transportation with in these areas: City of Iloilo, Cabatuan, Sta Barbara, Pavia, San Miguel, Janiuay, Maasin",
+      "With friendly uniformed servers/staffs (4hrs full catering service)",
+      "Service water",
+      "Basic Balloon Backdrop"
+    ],
+    miniGrazingInclusions: MINI_GRAZING_TABLE_INCLUSIONS
+  },
+  {
+    id: "promo_bermonths_100",
+    serviceType: "promo",
+    code: "PROMO-BER-100",
+    name: "Bermonths Promo 100 PAX (Full Catering + Mini Grazing Table + Whole Lechon)",
+    category: "Holiday Promo",
+    subtitle: "Full Catering Starts for Only ₱75,000 Good for 100 PAX • Good Food, Brighter Gatherings ♡",
+    badge: "🎄 ₱75,000 for 100 PAX • With Lechon",
+    popular: true,
+    isPromo: true,
+    hasLechon: true,
+    lechonDetails: "1 Whole Lechon (50kg Live weight)",
+    price: 75000,
+    pricePerPax: 750,
+    minPax: 100,
+    maxPax: 100,
+    paxRange: "Good for 100 PAX",
+    // Customizable promo date range (Flyer: Sept 30 to Dec 31)
+    promoStartDate: "2026-09-30",
+    promoEndDate: "2026-12-31",
+    promoRunsText: "SEPTEMBER 30 - DECEMBER 31",
+    promoIsActive: true,
+    mainDishesCount: 3,
+    sideDishes: { regular: 1, special: 0 },
+    desserts: { regular: 1, special: 0 },
+    hasSoup: true,
+    hasRice: true,
+    hasDrink: true,
+    hasMiniGrazingTable: true,
+    courses: {
+      beef: 1,
+      pork: 1,
+      chicken: 1,
+      sideRegular: 1,
+      sideSpecial: 0,
+      dessertRegular: 1,
+      dessertSpecial: 0,
+      soup: 1,
+      riceOrSoup: 1,
+      drinks: 1
+    },
+    inclusions: [
+      "3 Regular Mains (Choice of Beef, Pork, Chicken, or Seafood)",
+      "1 Regular Side (Pasta, Noodles, or Vegetable dish)",
+      "1 Regular Dessert (Filipino sweet desserts)",
+      "Hot Soup (Choice of Cream of Corn, Wild Mushroom, Roasted Pumpkin, Sotanghon Broth)",
+      "Steamed Pandan Jasmine Rice",
+      "Choice of: Chilled Soda or Fruit Juice",
+      "Mini Grazing Table (Charcuterie Platter, Fruit Platter, DIY Nachos w/ Cheese Fountain, Canapés & Mini Cups)",
+      "1 Whole Lechon (50kg Live weight)",
+      "Buffet table set up with full set of serving utensils and chafing dish",
+      "Tables and chairs for guests with table skirting, chair cover, simple table centerpiece, fine dining set up",
+      "Free transportation within the following areas: City of Iloilo, Cabatuan, Sta Barbara, Pavia, San Miguel, Janiuay, Maasin",
+      "Assorted drinks and ice",
+      "With friendly uniformed servers/staffs (4hrs full catering service)",
+      "Basic Balloon Backdrop"
+    ],
+    miniGrazingInclusions: MINI_GRAZING_TABLE_INCLUSIONS
+  }
+];
+
+export const SOUP_OPTIONS = [
+  "Hot Cream of Corn Soup",
+  "Cream of Wild Mushroom Soup",
+  "Savory Roasted Pumpkin Soup",
+  "Egg Drop & Sweet Corn Soup",
+  "Clear Chicken Sotanghon Broth"
+];
+
 export const CATERING_PACKAGES = [
   ...BUFFET_PACKAGES,
   ...FOOD_TRAY_PACKAGES,
   ...PICA_PICA_PACKAGES,
-  ...GRAZING_TABLE_PACKAGES
+  ...GRAZING_TABLE_PACKAGES,
+  ...PACKED_MEAL_PACKAGES,
+  ...BERMONTHS_PROMO_PACKAGES
 ];
 
 export function getMainDishesCount(pkg) {
   if (!pkg) return 5;
   if (pkg.serviceType === "pica_pica" || pkg.id?.startsWith("pica_pica")) return 0;
   if (pkg.serviceType === "grazing_table" || pkg.id?.startsWith("grazing_")) return 0;
+  if (pkg.serviceType === "packed_meal" || pkg.id?.startsWith("pm_") || pkg.id?.startsWith("packed_meal")) return pkg.mainDishesCount || 1;
+  if (pkg.serviceType === "promo" || pkg.id?.startsWith("promo_") || pkg.isPromo) return pkg.mainDishesCount || 2;
   // 1. Inclusions take precedence if specified explicitly in the bullet points (e.g. "4 Main Dishes", "5 Regular Main Dish", "3 Regular Main Dish")
   if (Array.isArray(pkg.inclusions)) {
     for (const inc of pkg.inclusions) {
@@ -573,10 +1278,10 @@ export function getPackageCourseAllowances(pkg) {
       specSidesCount: 0,
       regDessertsCount: 0,
       specDessertsCount: 0,
-      slidersCount: pkg.picaAllowances?.sliders || 2,
-      canapesCount: pkg.picaAllowances?.canapes || 5,
-      fingerFoodCount: pkg.picaAllowances?.fingerFood || 2,
-      miniDessertsCount: pkg.picaAllowances?.miniDesserts || 2,
+      slidersCount: typeof pkg.picaAllowances?.sliders === "number" ? pkg.picaAllowances.sliders : 2,
+      canapesCount: typeof pkg.picaAllowances?.canapes === "number" ? pkg.picaAllowances.canapes : 5,
+      fingerFoodCount: typeof pkg.picaAllowances?.fingerFood === "number" ? pkg.picaAllowances.fingerFood : 0,
+      miniDessertsCount: typeof pkg.picaAllowances?.miniDesserts === "number" ? pkg.picaAllowances.miniDesserts : 0,
       hasKakanin: Boolean(pkg.picaAllowances?.hasKakanin),
       hasDiyStation: Boolean(pkg.picaAllowances?.hasDiyStation)
     };
@@ -590,9 +1295,38 @@ export function getPackageCourseAllowances(pkg) {
       specSidesCount: 0,
       regDessertsCount: 0,
       specDessertsCount: 0,
-      canapesCount: pkg.grazingAllowances?.canapes || 5,
-      slidersCount: pkg.grazingAllowances?.sliders || 4,
+      canapesCount: typeof pkg.grazingAllowances?.canapes === "number" ? pkg.grazingAllowances.canapes : 5,
+      slidersCount: typeof pkg.grazingAllowances?.sliders === "number" ? pkg.grazingAllowances.sliders : 4,
       hasDessertShots: Boolean(pkg.grazingAllowances?.hasDessertShots)
+    };
+  }
+
+  // If Packed Meal / Bento package:
+  if (pkg.serviceType === "packed_meal" || pkg.id?.startsWith("pm_") || pkg.id?.startsWith("packed_meal")) {
+    return {
+      mainDishesCount: typeof pkg.mainDishesCount === "number" ? pkg.mainDishesCount : (mainDishesCount || 1),
+      regSidesCount: typeof pkg.sideDishes?.regular === "number" ? pkg.sideDishes.regular : 1,
+      specSidesCount: typeof pkg.sideDishes?.special === "number" ? pkg.sideDishes.special : 0,
+      regDessertsCount: typeof pkg.desserts?.regular === "number" ? pkg.desserts.regular : 0,
+      specDessertsCount: 0,
+      hasDessertCup: Boolean(pkg.hasDessertCup),
+      hasBottledWater: Boolean(pkg.hasBottledWater)
+    };
+  }
+
+  // If Bermonths Promo / Holiday Promo package:
+  if (pkg.serviceType === "promo" || pkg.id?.startsWith("promo_") || pkg.isPromo) {
+    return {
+      mainDishesCount: typeof pkg.mainDishesCount === "number" ? pkg.mainDishesCount : (pkg.name?.includes("100") ? 3 : 2),
+      regSidesCount: typeof pkg.sideDishes?.regular === "number" ? pkg.sideDishes.regular : 1,
+      specSidesCount: typeof pkg.sideDishes?.special === "number" ? pkg.sideDishes.special : 0,
+      regDessertsCount: typeof pkg.desserts?.regular === "number" ? pkg.desserts.regular : 1,
+      specDessertsCount: 0,
+      hasSoup: true,
+      hasRice: true,
+      hasDrink: true,
+      hasMiniGrazingTable: true,
+      hasLechon: Boolean(pkg.hasLechon)
     };
   }
 
@@ -803,6 +1537,13 @@ export const DISH_MENU_OPTIONS = {
     { id: "sd_reg_12", name: "Fresh Lumpia", tier: "regular", description: "Hearty palm heart and vegetable roll wrapped in fresh crepe with sweet peanut garlic sauce" },
     { id: "sd_reg_13", name: "Japchae (Korean Noodles)", tier: "regular", description: "Korean stir-fried sweet potato glass noodles with vegetables, sesame and sweet soy" },
     { id: "sd_reg_14", name: "Potato Salad", tier: "regular", description: "Classic creamy diced potato salad with apples, eggs, chicken and mayonnaise" },
+    { id: "sd_reg_15", name: "Tuna Macaroni Salad", tier: "regular", description: "Chilled elbow macaroni tossed with tuna flakes, relish, sweet carrots and light mayonnaise" },
+    { id: "sd_reg_16", name: "Lumpiang Gulay", tier: "regular", description: "Crispy fried vegetable spring roll filled with bean sprouts, carrots and tofu" },
+    { id: "sd_reg_17", name: "Penne Pasta or Penne Tuna Pesto", tier: "regular", description: "Al dente penne pasta tossed in rich basil herb garlic pesto and flaked tuna" },
+    { id: "sd_reg_18", name: "Fish Tofu", tier: "regular", description: "Savory golden fish tofu cubes sautéed with bell peppers and mild sweet glaze" },
+    { id: "sd_reg_19", name: "Potato Croquettes", tier: "regular", description: "Crispy golden fried mashed potato croquettes with melted savory cheese center" },
+    { id: "sd_reg_20", name: "Meat Balls", tier: "regular", description: "Juicy seasoned pork-beef meatballs glazed in rich savory sauce" },
+    { id: "sd_reg_21", name: "Chicken Fingers", tier: "regular", description: "Crispy panko-breaded golden chicken breast tenderloin fingers with dip" },
     // SPECIAL DISH
     { id: "sd_spec_1", name: "Assorted Canapés", tier: "special", premium: true, upgradePrice: 65, description: "Chef's gourmet finger-food platter of savory crostini, smoked ham and cheese canapés" },
     { id: "sd_spec_2", name: "Potato Gratin", tier: "special", premium: true, upgradePrice: 65, description: "Thinly sliced potatoes baked with garlic, nutmeg and rich heavy cream with golden cheese crust" },
@@ -837,7 +1578,10 @@ export const DISH_MENU_OPTIONS = {
     { id: "dr2", name: "Fresh Calamansi & Dalandan Citrus Cooler", tier: "regular", description: "Cold-pressed native Philippine citrus sweetened with organic wild honey" },
     { id: "dr3", name: "Blue Lemonade Refresher with Mint", tier: "regular", description: "Refreshing blue lemonade infused with fresh crushed spearmint" },
     { id: "dr4", name: "Cucumber Mint Infused Iced Drink", tier: "regular", description: "Crisp cucumber essence with light citrus and chilled mineral water" },
-    { id: "dr5", name: "Soda (Coke)", tier: "regular", description: "Ice-cold Coca-Cola Soda (Bottomless)" }
+    { id: "dr5", name: "Soda (Coke)", tier: "regular", description: "Ice-cold Coca-Cola Soda (Bottomless)" },
+    { id: "dr6", name: "Soda (Coke / Sprite / Royal)", tier: "regular", description: "Individual canned / bottled soda (Choice of Coke, Sprite, or Royal)" },
+    { id: "dr7", name: "Soda or C2 Green Tea", tier: "regular", description: "Choice of chilled canned soda or C2 Green Tea (Apple / Lemon)" },
+    { id: "dr8", name: "Bottled Water", tier: "regular", description: "Purified sealed bottled mineral water (350ml / 500ml)" }
   ],
   sliders: [
     // REGULAR CHOICES

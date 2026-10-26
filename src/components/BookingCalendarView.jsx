@@ -903,7 +903,15 @@ export default function BookingCalendarView({
                               }}>
                                 {b.status}
                               </span>
-                              {b.serviceType === "food_tray" || b.isFoodTray || b.packageId?.startsWith("food_tray") ? (
+                              {b.serviceType === "promo" || b.isPromo || b.packageId?.startsWith("promo_") ? (
+                                <span style={{ fontSize: "0.65rem", background: "#fef2f2", color: "#b91c1c", border: "1px solid #fca5a5", padding: "1px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                                  🎄 Bermonths Promo
+                                </span>
+                              ) : b.serviceType === "packed_meal" || b.isPackedMeal || b.packageId?.startsWith("pm_") ? (
+                                <span style={{ fontSize: "0.65rem", background: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", padding: "1px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                                  🍱 Packed Meal
+                                </span>
+                              ) : b.serviceType === "food_tray" || b.isFoodTray || b.packageId?.startsWith("food_tray") ? (
                                 <span style={{ fontSize: "0.65rem", background: "var(--gold-100)", color: "var(--gold-800)", padding: "1px 6px", borderRadius: "4px", fontWeight: 700 }}>
                                   🍱 Food Tray
                                 </span>
